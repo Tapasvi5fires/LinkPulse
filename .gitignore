@@ -1,0 +1,77 @@
+# --- Root / OS / Misc ---
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+*.swp
+.idea/
+.vscode/
+.history/
+*.log
+
+# --- Project Cleanup Scripts ---
+repair_dashboard_v2.js
+fix_dashboard.js
+debug_yt.py
+apply_final_changes.js
+rebuild_dashboard.js
+search_results.log
+build_error.log
+test_yt.py
+
+# --- Environment Secrets ---
+.env
+.env.*
+!.env.example
+*.local
+
+# --- Backend (Python) ---
+backend/__pycache__/
+backend/*.py[cod]
+backend/*$py.class
+backend/.Python
+backend/build/
+backend/develop-eggs/
+backend/dist/
+backend/downloads/
+backend/eggs/
+backend/.eggs/
+backend/lib/
+backend/lib64/
+backend/parts/
+backend/sdist/
+backend/var/
+backend/wheels/
+backend/pip-wheel-metadata/
+backend/share/python-wheels/
+backend/*.egg-info/
+backend/.installed.cfg
+backend/*.egg
+backend/MANIFEST
+backend/.venv
+backend/venv/
+backend/ENV/
+backend/env/
+backend/sqlite.db
+backend/chroma/
+backend/db/
+backend/data/
+
+# --- Frontend (Node.js/Next.js) ---
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+frontend/.vercel
+frontend/.turbo
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+frontend/next-env.d.ts
+
+# --- Docker ---
+.docker/
+docker-compose.override.yml

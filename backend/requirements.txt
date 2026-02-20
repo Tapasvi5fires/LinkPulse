@@ -1,0 +1,35 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+pydantic-settings
+email-validator
+psycopg2-binary
+asyncpg
+alembic
+celery
+redis
+requests
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+# AI/ML
+langchain
+langchain-community
+langchain-openai
+langchain-text-splitters
+sentence-transformers
+faiss-cpu
+rank_bm25
+# Ingestion
+playwright
+beautifulsoup4
+trafilatura
+pymupdf
+pytesseract
+youtube-transcript-api
+pygithub
+instaloader
+openai
+google-generativeai
+groq
