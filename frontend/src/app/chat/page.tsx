@@ -514,9 +514,9 @@ export default function ChatPage() {
                                         </div>
                                     </div>
 
-                                    {/* ─── Panel Body — OUTER SCROLLER ─── */}
-                                    <ScrollArea className="max-h-[420px]">
-                                        <div className="p-2.5 space-y-2.5">
+                                    {/* ─── Panel Body — OUTER SCROLLER (vertical + horizontal) ─── */}
+                                    <ScrollArea className="max-h-[420px]" type="always" bothAxes>
+                                        <div className="p-2.5 space-y-2.5 min-w-[380px]">
                                             {sources.length === 0 ? (
                                                 <div className="p-10 text-center rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-gradient-to-b from-slate-50 via-white to-slate-50/50 dark:from-slate-800/50 dark:via-slate-900/50 dark:to-slate-800/30">
                                                     <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center shadow-inner">
@@ -577,11 +577,13 @@ export default function ChatPage() {
                                                                 </div>
                                                             </div>
 
-                                                            {/* Groups/Items — INNER SCROLLER per section */}
+                                                            {/* Groups/Items — INNER SCROLLER per section (vertical + horizontal) */}
                                                             <ScrollArea
                                                                 className="max-h-[220px] pr-1"
+                                                                type="always"
+                                                                bothAxes
                                                             >
-                                                                <div className="px-1.5 pb-2.5 space-y-0.5">
+                                                                <div className="px-1.5 pb-2.5 space-y-0.5 min-w-[340px]">
                                                                     {groups.map(group => {
                                                                         const isMulti = group.sources.length > 1 || group.type === 'website';
                                                                         const selState = getGroupSelectionState(group);
@@ -645,10 +647,10 @@ export default function ChatPage() {
                                                                                 {isMulti && isExpanded && (
                                                                                     <div className={`mx-2 mb-1.5 rounded-lg border overflow-hidden ${meta.selectedBg} border-slate-200/40 dark:border-slate-700/40 shadow-inner`}>
                                                                                         <div
-                                                                                            className="overflow-y-auto overscroll-contain pr-1 custom-inner-scrollbar"
+                                                                                            className="overflow-y-auto overflow-x-auto overscroll-contain pr-1 custom-inner-scrollbar"
                                                                                             style={{ maxHeight: '180px' }}
                                                                                         >
-                                                                                            <div className="divide-y divide-slate-200/40 dark:divide-slate-700/30">
+                                                                                            <div className="divide-y divide-slate-200/40 dark:divide-slate-700/30 min-w-[300px]">
                                                                                                 {group.sources.map(source => {
                                                                                                     const isSelected = selectedSources.includes(source.source_url);
                                                                                                     const itemIcon = source.source_type === 'github' ? <Github size={11} className="text-slate-500 shrink-0" /> :
