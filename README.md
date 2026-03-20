@@ -79,9 +79,9 @@ LINKPULSE/
 ├── docker-compose.yml  # Containerized Deployment
 └── .gitignore          # Production-ready exclusions
 
-Paper: https://zenodo.org/records/19138712
-```
 
+```
+Paper: https://zenodo.org/records/19138712
 ---
 
 ## 📄 License
