@@ -39,6 +39,8 @@ async def process_ingestion_task(source_type: str, source_url: str, user_id: int
         
         if not documents:
             logger.warning(f"No content extracted from {source_url}")
+            if task_id:
+                task_manager.fail_task(task_id, "No content extracted from source. It might be private, restricted, or empty.")
             return
             
         logger.info(f"Extracted {len(documents)} documents. Starting processing.")
@@ -95,12 +97,12 @@ async def upload_files(
         
         if filename.endswith(".pdf"):
             source_type = "pdf"
-        elif filename.endswith(".docx"):
+        elif filename.endswith(".docx") or filename.endswith(".doc"):
             source_type = "docx"
-        elif filename.endswith(".pptx"):
+        elif filename.endswith(".pptx") or filename.endswith(".ppt"):
             source_type = "pptx"
         elif filename.endswith(".txt") or filename.endswith(".md"):
-            source_type = "text" # or markdown
+            source_type = "text"
         else:
              logger.warning(f"Skipping unsupported file: {file.filename}")
              continue
@@ -171,7 +173,7 @@ async def get_ingested_sources(
     from app.services.processing.vector_db import vector_db
     
     # Extract unique sources from metadata, filtered by user_id
-    logger.info(f"Fetching sources for user: {current_user.id}")
+    logger.debug(f"Fetching sources for user: {current_user.id}")
     sources = {}
     for i, meta in vector_db.metadata.items():
         # Only include sources belonging to the current user

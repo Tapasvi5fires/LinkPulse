@@ -48,11 +48,39 @@ class GitHubIngestor(BaseIngestor):
     
     MAX_FILE_SIZE = 500_000  # 500KB per file
 
+    def _normalize_source(self, source: str) -> str:
+        """
+        Normalize github source to 'owner/repo' format.
+        """
+        import re
+        source = source.strip()
+        # Handle SSH and HTTPS URLs
+        if source.startswith("git@github.com:"):
+            return source.split("git@github.com:")[1].replace(".git", "")
+        
+        patterns = [
+            r'github\.com/([^/]+/[^/\s#?]+)', 
+            r'^([^/]+/[^/]+)$'
+        ]
+        
+        for p in patterns:
+            match = re.search(p, source)
+            if match:
+                repo_path = match.group(1).replace('.git', '')
+                parts = repo_path.split('/')
+                if len(parts) >= 2:
+                    return f"{parts[0]}/{parts[1]}"
+        return source
+
     async def ingest(self, source: str, **kwargs) -> List[IngestedDocument]:
         """
         Clone a GitHub repository and read all supported files.
-        source: 'owner/repo' (e.g., 'facebook/react')
+        source: 'owner/repo' or full GitHub URL
         """
+        source = self._normalize_source(source)
+        if '/' not in source or len(source.split('/')) < 2:
+             raise ValueError(f"Invalid GitHub repository identifier: {source}. Expected 'owner/repo' or a GitHub URL.")
+
         documents = []
         clone_url = f"https://github.com/{source}.git"
         tmp_dir = tempfile.mkdtemp(prefix="linkpulse_git_")
@@ -70,7 +98,10 @@ class GitHubIngestor(BaseIngestor):
             
             if result.returncode != 0:
                 logger.error(f"Git clone failed: {result.stderr}")
-                raise Exception(f"Failed to clone repository: {result.stderr.strip()}")
+                error_msg = result.stderr.strip()
+                if "not found" in error_msg.lower() or "repository" in error_msg.lower():
+                    raise Exception(f"GitHub repository not found or private: {source}")
+                raise Exception(f"Failed to clone repository: {error_msg}")
             
             logger.info(f"Successfully cloned {source}. Scanning files...")
             

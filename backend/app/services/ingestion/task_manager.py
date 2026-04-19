@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, List, Set, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +12,7 @@ class IngestionTask:
         self.source_type = source_type
         self.status = "processing"
         self.started_at = datetime.utcnow()
+        self.finished_at = None
         self.error = None
 
     def to_dict(self):
@@ -22,6 +23,7 @@ class IngestionTask:
             "source_type": self.source_type,
             "status": self.status,
             "started_at": self.started_at.isoformat(),
+            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
             "error": self.error
         }
 
@@ -41,21 +43,55 @@ class TaskManager:
 
     def complete_task(self, task_id: str):
         if task_id in self.tasks:
-            del self.tasks[task_id]
-            logger.info(f"Task completed and removed: {task_id}")
+            task = self.tasks[task_id]
+            task.status = "completed"
+            task.finished_at = datetime.utcnow()
+            logger.info(f"Task marked as completed: {task_id}")
 
     def fail_task(self, task_id: str, error: str):
         if task_id in self.tasks:
-            self.tasks[task_id].status = "failed"
-            self.tasks[task_id].error = error
+            task = self.tasks[task_id]
+            task.status = "failed"
+            task.error = error
+            task.finished_at = datetime.utcnow()
             logger.error(f"Task failed: {task_id} - {error}")
-            # We keep failed tasks for a while for UI to show error? 
-            # For now, let's keep them and maybe clear them on a timer later.
-            # actually let's just remove them for now to keep it simple, 
-            # or keep them for 5 mins.
     
     def get_user_tasks(self, user_id: int) -> List[Dict[str, Any]]:
-        return [t.to_dict() for t in self.tasks.values() if t.user_id == user_id]
+        now = datetime.utcnow()
+        active_tasks = []
+        tasks_to_delete = []
+
+        for task_id, task in self.tasks.items():
+            if task.user_id != user_id:
+                continue
+            
+            # Keep active tasks
+            if task.status in ["processing", "queued"]:
+                active_tasks.append(task.to_dict())
+                continue
+            
+            # Check for cleanup
+            if task.finished_at:
+                # Keep completed tasks for 5 seconds
+                if task.status == "completed":
+                    if now - task.finished_at < timedelta(seconds=5):
+                        active_tasks.append(task.to_dict())
+                    else:
+                        tasks_to_delete.append(task_id)
+                
+                # Keep failed tasks for 15 seconds
+                elif task.status == "failed":
+                    if now - task.finished_at < timedelta(seconds=15):
+                        active_tasks.append(task.to_dict())
+                    else:
+                        tasks_to_delete.append(task_id)
+
+        # Cleanup
+        for tid in tasks_to_delete:
+            if tid in self.tasks:
+                del self.tasks[tid]
+
+        return active_tasks
 
     def clear_failed_task(self, task_id: str):
         if task_id in self.tasks:

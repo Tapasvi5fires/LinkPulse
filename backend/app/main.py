@@ -1,3 +1,5 @@
+import sys
+import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
@@ -9,6 +11,10 @@ from app.models.user import User
 from app.models.audit import AuditLog
 
 from app.core.logging_config import setup_logging
+
+# Set the event loop policy for Windows to support subprocesses (needed for Playwright)
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 setup_logging()
 

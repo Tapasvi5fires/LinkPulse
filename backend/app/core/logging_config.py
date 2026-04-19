@@ -20,6 +20,7 @@ def setup_logging():
     # Set levels for noisy libraries
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     
     # Create application logger
     logger = logging.getLogger("app")
