@@ -8,17 +8,12 @@ export default function Home() {
     const router = useRouter();
 
     useEffect(() => {
-        const checkAuth = async () => {
-            const token = localStorage.getItem('token');
+        const initialize = async () => {
             // Give it a tiny bit of time for a smooth transition feel
-            await new Promise(r => setTimeout(r, 800));
-            if (token) {
-                router.replace('/dashboard');
-            } else {
-                router.replace('/login');
-            }
+            await new Promise(r => setTimeout(r, 1200));
+            router.replace('/login');
         };
-        checkAuth();
+        initialize();
     }, [router]);
 
     return (

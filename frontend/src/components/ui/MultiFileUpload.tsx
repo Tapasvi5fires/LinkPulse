@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, X, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, X, FileText, CheckCircle, AlertCircle, Loader2, FolderOpen, FileCode, FileImage, FileBox, FileArchive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from '@/components/ui/button';
 
 interface MultiFileUploadProps {
     onUploadComplete?: (results: any) => void;
@@ -17,11 +18,38 @@ interface FileStatus {
     message?: string;
 }
 
-export function MultiFileUpload({ onUploadComplete, folderName }: MultiFileUploadProps) {
+// Supported file map for icons and validation
+const SUPPORTED_TYPES = {
+    'application/pdf': { icon: FileText, color: 'text-red-500' },
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { icon: FileText, color: 'text-blue-600' },
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': { icon: FileBox, color: 'text-orange-500' },
+    'text/plain': { icon: FileText, color: 'text-slate-500' },
+    'text/markdown': { icon: FileCode, color: 'text-indigo-500' },
+    // Fallback for extensions if MIME type is generic
+    '.md': { icon: FileCode, color: 'text-indigo-500' },
+    '.docx': { icon: FileText, color: 'text-blue-600' },
+    '.pptx': { icon: FileBox, color: 'text-orange-500' },
+};
+
+export function MultiFileUpload({ onUploadComplete, folderName: initialFolderName }: MultiFileUploadProps) {
     const [files, setFiles] = useState<FileStatus[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [customFolderName, setCustomFolderName] = useState(initialFolderName || "");
+
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const folderInputRef = useRef<HTMLInputElement>(null);
+
+    const getFileIcon = (file: File) => {
+        const type = file.type;
+        const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+
+        const info = SUPPORTED_TYPES[type as keyof typeof SUPPORTED_TYPES] ||
+            SUPPORTED_TYPES[ext as keyof typeof SUPPORTED_TYPES];
+
+        if (info) return <info.icon className={cn("h-5 w-5 shrink-0", info.color)} />;
+        return <FileText className="h-5 w-5 text-gray-400 shrink-0" />;
+    };
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -29,15 +57,39 @@ export function MultiFileUpload({ onUploadComplete, folderName }: MultiFileUploa
         }
     };
 
+    const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            const fileList = Array.from(e.target.files);
+            // If it's a folder upload and no folder name is set, try to infer it from the first file's path
+            const firstFile = fileList[0] as any;
+            if (!customFolderName && firstFile.webkitRelativePath) {
+                const folderName = firstFile.webkitRelativePath.split('/')[0];
+                setCustomFolderName(folderName);
+            }
+            addFiles(fileList);
+        }
+    };
+
     const addFiles = (newFiles: File[]) => {
-        const pdfFiles = newFiles.filter(f => f.type === 'application/pdf');
-        if (pdfFiles.length < newFiles.length) {
-            alert("Only PDF files are supported.");
+        const supportedExtensions = ['.pdf', '.docx', '.pptx', '.txt', '.md'];
+        const validFiles = newFiles.filter(f => {
+            const ext = '.' + f.name.split('.').pop()?.toLowerCase();
+            return f.type.startsWith('text/') ||
+                f.type.includes('pdf') ||
+                f.type.includes('word') ||
+                f.type.includes('presentation') ||
+                supportedExtensions.includes(ext);
+        });
+
+        if (validFiles.length < newFiles.length) {
+            const unsupportedCount = newFiles.length - validFiles.length;
+            // Optionally notify about skipped files
+            console.warn(`Skipped ${unsupportedCount} unsupported files.`);
         }
 
         setFiles(prev => [
             ...prev,
-            ...pdfFiles.map(f => ({ file: f, status: 'pending' as const, progress: 0 }))
+            ...validFiles.map(f => ({ file: f, status: 'pending' as const, progress: 0 }))
         ]);
     };
 
@@ -87,24 +139,25 @@ export function MultiFileUpload({ onUploadComplete, folderName }: MultiFileUploa
         const progressInterval = setInterval(() => {
             setFiles(prev => prev.map(f => {
                 if (f.status === 'uploading') {
-                    const newProgress = Math.min(f.progress + Math.random() * 10, 90);
+                    const newProgress = Math.min(f.progress + Math.random() * 15, 95);
                     return { ...f, progress: newProgress };
                 }
                 return f;
             }));
-        }, 500);
+        }, 400);
 
         pendingFiles.forEach(f => {
             formData.append('files', f.file);
         });
 
-        // Append folder name if provided
-        if (folderName && folderName.trim()) {
-            formData.append('folder_name', folderName.trim());
+        const activeFolderName = customFolderName || initialFolderName;
+        if (activeFolderName && activeFolderName.trim()) {
+            formData.append('folder_name', activeFolderName.trim());
         }
 
         try {
-            const response = await fetch('http://localhost:8090/api/v1/ingestion/upload', {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090';
+            const response = await fetch(`${apiUrl}/api/v1/ingestion/upload`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -119,14 +172,8 @@ export function MultiFileUpload({ onUploadComplete, folderName }: MultiFileUploa
                 setFiles(prev => prev.map(f => f.status === 'uploading' ? { ...f, status: 'success', progress: 100, message: 'Ingestion started' } : f));
                 if (onUploadComplete) onUploadComplete(data);
             } else {
-                if (response.status === 401 || response.status === 403) {
-                    alert("Session expired. Please log in again.");
-                    // Optional: Redirect to login if router is available, but alert is good for now
-                    setFiles(prev => prev.map(f => f.status === 'uploading' ? { ...f, status: 'error', progress: 0, message: 'Session expired' } : f));
-                } else {
-                    const errorData = await response.json();
-                    setFiles(prev => prev.map(f => f.status === 'uploading' ? { ...f, status: 'error', progress: 0, message: errorData.detail || 'Upload failed' } : f));
-                }
+                const errorData = await response.json().catch(() => ({ detail: 'Upload failed' }));
+                setFiles(prev => prev.map(f => f.status === 'uploading' ? { ...f, status: 'error', progress: 0, message: errorData.detail || 'Upload failed' } : f));
             }
         } catch (error) {
             clearInterval(progressInterval);
@@ -137,83 +184,182 @@ export function MultiFileUpload({ onUploadComplete, folderName }: MultiFileUploa
         }
     };
 
+    const hasPending = files.some(f => f.status === 'pending');
+    const hasUploading = files.some(f => f.status === 'uploading');
+
     return (
         <div className="w-full max-w-2xl mx-auto p-4 space-y-4">
             <div
                 className={cn(
-                    "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
-                    isDragging ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-300 dark:border-gray-700",
+                    "relative group border-2 border-dashed rounded-3xl transition-all duration-300",
+                    files.length > 0 ? "p-4" : "p-10",
+                    isDragging ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/20 ring-4 ring-indigo-500/10" : "border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 bg-slate-50/30 dark:bg-slate-900/20",
                     isUploading && "opacity-50 pointer-events-none"
                 )}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
             >
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    Drag & drop PDFs here, or click to select
-                </p>
+                <div className={cn("flex items-center gap-4 text-left", files.length > 0 ? "flex-row justify-center" : "flex-col")}>
+                    <div className={cn(
+                        "rounded-2xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-inner group-hover:scale-110 transition-transform",
+                        files.length > 0 ? "h-10 w-10" : "h-16 w-16"
+                    )}>
+                        <Upload className={cn(files.length > 0 ? "h-5 w-5" : "h-8 w-8")} />
+                    </div>
+                    <div className={files.length > 0 ? "flex-1" : "text-center"}>
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                            {files.length > 0 ? "Add more sources" : "Drop your sources here"}
+                        </h3>
+                        {files.length === 0 && (
+                            <p className="mt-1 text-xs text-slate-500 font-medium max-w-[240px]">
+                                PDFs, Word, PPTs, Text, or even entire folders
+                            </p>
+                        )}
+                    </div>
+                    <div className={cn("flex gap-2.5", files.length === 0 && "mt-2")}>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold text-xs"
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            Select Files
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold text-xs"
+                            onClick={() => folderInputRef.current?.click()}
+                        >
+                            <FolderOpen className="h-3 w-3 mr-1.5" />
+                            Select Folder
+                        </Button>
+                    </div>
+                </div>
+
                 <input
                     type="file"
                     ref={fileInputRef}
                     className="hidden"
                     multiple
-                    accept=".pdf"
+                    accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md"
                     onChange={handleFileSelect}
+                />
+                <input
+                    type="file"
+                    ref={folderInputRef}
+                    className="hidden"
+                    // @ts-ignore
+                    webkitdirectory=""
+                    directory=""
+                    multiple
+                    onChange={handleFolderSelect}
                 />
             </div>
 
             {files.length > 0 && (
-                <ScrollArea className="max-h-[300px] pr-4">
-                    <div className="space-y-2 pb-1">
-                        {files.map((fileStatus, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm border border-gray-100 dark:border-gray-700">
-                                <div className="flex items-center space-x-3 overflow-hidden">
-                                    <FileText className="h-5 w-5 text-blue-500 flex-shrink-0" />
-                                    <span className="text-sm truncate max-w-[200px]">{fileStatus.file.name}</span>
-                                    <span className="text-xs text-gray-500">({(fileStatus.file.size / 1024 / 1024).toFixed(2)} MB)</span>
-                                </div>
-
-                                <div className="flex-1 px-4">
-                                    {fileStatus.status === 'uploading' && (
-                                        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                                            <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${fileStatus.progress}%` }}></div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="flex items-center space-x-2">
-                                    {fileStatus.status === 'uploading' && <span className="text-xs text-gray-500">{Math.round(fileStatus.progress)}%</span>}
-                                    {fileStatus.status === 'success' && <CheckCircle className="h-4 w-4 text-green-500" />}
-                                    {fileStatus.status === 'error' && <AlertCircle className="h-4 w-4 text-red-500" />}
-
-                                    {fileStatus.status !== 'uploading' && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); removeFile(index); }}
-                                            className="text-gray-400 hover:text-red-500"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
+                <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/50 backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                            Queue ({files.length} items)
+                        </span>
+                        {files.some(f => f.status === 'success') && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-[10px] uppercase font-bold text-indigo-500"
+                                onClick={() => setFiles(files.filter(f => f.status !== 'success'))}
+                            >
+                                Clear Finished
+                            </Button>
+                        )}
                     </div>
-                </ScrollArea>
-            )}
+                    <ScrollArea className="h-[300px] w-full border-b border-slate-200 dark:border-slate-800" type="always">
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {files.map((fileStatus, index) => (
+                                <div key={index} className="flex items-center justify-between p-4 hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors gap-4">
+                                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                                        {getFileIcon(fileStatus.file)}
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate" title={fileStatus.file.name}>
+                                                {fileStatus.file.name}
+                                            </p>
+                                            <p className="text-[10px] text-slate-500 font-medium">
+                                                {(fileStatus.file.size / 1024 / 1024).toFixed(2)} MB
+                                            </p>
+                                        </div>
+                                    </div>
 
-            {files.length > 0 && (
-                <div className="flex justify-end pt-4">
-                    <button
-                        onClick={handleUpload}
-                        disabled={isUploading || files.every(f => f.status === 'success')}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                    >
-                        {isUploading ? 'Uploading...' : 'Upload & Ingest'}
-                    </button>
+                                    <div className="flex items-center gap-4">
+                                        {fileStatus.status === 'uploading' && (
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-20 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${fileStatus.progress}%` }} />
+                                                </div>
+                                                <span className="text-[10px] font-black tabular-nums text-indigo-500">{Math.round(fileStatus.progress)}%</span>
+                                            </div>
+                                        )}
+
+                                        {fileStatus.status === 'success' && (
+                                            <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px]">Ready</Badge>
+                                        )}
+
+                                        {fileStatus.status === 'error' && (
+                                            <span className="text-[10px] font-bold text-red-500">{fileStatus.message}</span>
+                                        )}
+
+                                        {!hasUploading && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); removeFile(index); }}
+                                                className="text-slate-400 hover:text-red-500 transition-colors"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
+
+                    {(hasPending || isUploading) && (
+                        <div className="p-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Target Folder</span>
+                                <input
+                                    className="bg-transparent border-none text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none placeholder:text-slate-600"
+                                    placeholder="Ungrouped"
+                                    value={customFolderName}
+                                    onChange={(e) => setCustomFolderName(e.target.value)}
+                                />
+                            </div>
+                            <Button
+                                onClick={handleUpload}
+                                disabled={isUploading || !hasPending}
+                                className="rounded-xl px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 shadow-lg shadow-indigo-500/20"
+                            >
+                                {isUploading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Ingesting...
+                                    </>
+                                ) : (
+                                    'Start Ingestion'
+                                )}
+                            </Button>
+                        </div>
+                    )}
                 </div>
             )}
+        </div>
+    );
+}
+
+function Badge({ children, className }: { children: React.ReactNode, className?: string }) {
+    return (
+        <div className={cn("px-2 py-0.5 rounded-full border text-xs font-medium", className)}>
+            {children}
         </div>
     );
 }

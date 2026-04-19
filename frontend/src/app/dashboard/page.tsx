@@ -5,7 +5,7 @@ import { MultiFileUpload } from '@/components/ui/MultiFileUpload';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, File, Github, Youtube, Globe, Instagram, Loader2, Plus, RefreshCw, FileQuestion, Sparkles, Trash2, ExternalLink, Download, Copy, Check, Search, Filter, ChevronDown, ChevronRight, Folder, FolderOpen, CheckSquare, Square, X, ArrowUpDown, Minus, Hash, Code2, FileCode, FileImage, Database, LayoutGrid } from 'lucide-react';
+import { FileText, File, Github, Youtube, Globe, Instagram, Loader2, Plus, RefreshCw, FileQuestion, Sparkles, Trash2, ExternalLink, Download, Copy, Check, Search, Filter, ChevronDown, ChevronRight, Folder, FolderOpen, CheckSquare, Square, X, ArrowUpDown, Minus, Hash, Code2, FileCode, FileImage, Database, LayoutGrid, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -90,9 +90,14 @@ export default function DashboardPage() {
                 const data = await response.json();
                 setActiveTasks(data);
 
-                // If any task is complete, refresh sources
+                // If any task is newly complete, refresh sources
                 const hasFinished = data.some((t: any) => t.status === 'completed');
-                if (hasFinished) fetchSources();
+                const wasProcessing = activeTasks.some(at => at.status === 'processing' || at.status === 'queued');
+                
+                // Only fetch sources if a task JUST finished (went from processing to completed)
+                if (hasFinished && wasProcessing) {
+                    fetchSources();
+                }
             }
         } catch (error) {
             console.error("Failed to fetch tasks:", error);
@@ -134,12 +139,8 @@ export default function DashboardPage() {
         // Poll for tasks every 3 seconds
         const taskInterval = setInterval(fetchTasks, 3000);
 
-        // Refresh sources every 10 seconds just in case
-        const sourcesInterval = setInterval(fetchSources, 10000);
-
         return () => {
             clearInterval(taskInterval);
-            clearInterval(sourcesInterval);
         };
     }, [router]);
 
@@ -622,8 +623,8 @@ export default function DashboardPage() {
             <Sidebar />
             <main className="flex-1 md:ml-64 relative z-10 transition-colors duration-500 bg-[conic-gradient(at_bottom_left,_var(--tw-gradient-stops))] from-slate-100 via-rose-100 to-teal-100 dark:from-slate-900 dark:via-purple-950 dark:to-slate-900 h-screen flex flex-col overflow-hidden">
 
-                {/* Sticky Header Section */}
-                <div className="sticky top-0 z-30 px-6 md:px-10 pt-6 md:pt-10 pb-4 space-y-6 bg-transparent backdrop-blur-md border-b border-slate-200/20 dark:border-slate-800/20 shadow-sm shrink-0">
+                {/* Fixed Resource Bar */}
+                <div className="sticky top-0 z-30 px-6 md:px-10 pt-6 md:pt-10 pb-4 space-y-4 bg-transparent backdrop-blur-md border-b border-slate-200/20 dark:border-slate-800/20 shadow-sm shrink-0">
                     {/* Active Ingestions */}
                     {activeTasks.length > 0 && (
                         <div className="animate-in slide-in-from-top-4 duration-500">
@@ -639,28 +640,45 @@ export default function DashboardPage() {
                             </div>
                             <ScrollArea className="max-h-[200px] pr-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-2">
-                                    {activeTasks.map((task: any) => (
-                                        <div key={task.task_id} className="relative group overflow-hidden rounded-2xl bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-indigo-200/50 dark:border-indigo-800/50 p-4 shadow-lg shadow-indigo-500/5">
-                                            <div className="absolute top-0 left-0 w-full h-1 bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                                <div className="h-full bg-indigo-500 animate-loading-bar" />
-                                            </div>
-                                            <div className="flex items-center justify-between gap-3">
-                                                <div className="flex items-center gap-3 overflow-hidden">
-                                                    <div className="h-10 w-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center shrink-0">
-                                                        {task.source_type === 'youtube' ? <Youtube className="h-5 w-5 text-red-500" /> :
-                                                            task.source_type === 'github' ? <Github className="h-5 w-5" /> :
-                                                                task.source_type === 'website' ? <Globe className="h-5 w-5 text-blue-500" /> :
-                                                                    <FileText className="h-5 w-5 text-indigo-500" />}
+                                    {activeTasks.map((task: any) => {
+                                        const isCompleted = task.status === 'completed';
+                                        const isFailed = task.status === 'failed';
+                                        const isProcessing = task.status === 'processing' || task.status === 'queued';
+                                        
+                                        return (
+                                            <div key={task.task_id} className={`relative group overflow-hidden rounded-2xl bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border p-4 shadow-lg shadow-indigo-500/5 transition-all duration-300 ${isFailed ? 'border-red-200/50 dark:border-red-800/50' : isCompleted ? 'border-emerald-200/50 dark:border-emerald-800/50' : 'border-indigo-200/50 dark:border-indigo-800/50'}`}>
+                                                {isProcessing && (
+                                                    <div className="absolute top-0 left-0 w-full h-1 bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                                        <div className="h-full bg-indigo-500 animate-loading-bar" />
                                                     </div>
-                                                    <div className="overflow-hidden">
-                                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{task.url}</p>
-                                                        <p className="text-[10px] text-slate-500 font-medium uppercase tracking-tighter">{task.status}</p>
+                                                )}
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="flex items-center gap-3 overflow-hidden">
+                                                        <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${isFailed ? 'bg-red-100 dark:bg-red-900/40' : isCompleted ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-indigo-100 dark:bg-indigo-900/40'}`}>
+                                                            {isFailed ? <AlertCircle className="h-5 w-5 text-red-500" /> :
+                                                                isCompleted ? <CheckCircle2 className="h-5 w-5 text-emerald-500" /> :
+                                                                    task.source_type === 'youtube' ? <Youtube className="h-5 w-5 text-red-500" /> :
+                                                                        task.source_type === 'github' ? <Github className="h-5 w-5 text-slate-700 dark:text-slate-300" /> :
+                                                                            task.source_type === 'website' ? <Globe className="h-5 w-5 text-blue-500" /> :
+                                                                                <FileText className="h-5 w-5 text-indigo-500" />}
+                                                        </div>
+                                                        <div className="overflow-hidden">
+                                                            <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{task.source_url}</p>
+                                                            <p className={`text-[10px] font-black uppercase tracking-widest ${isFailed ? 'text-red-500' : isCompleted ? 'text-emerald-500' : 'text-slate-500'}`}>
+                                                                {task.status}
+                                                            </p>
+                                                        </div>
                                                     </div>
+                                                    {isProcessing && <Loader2 className="h-4 w-4 animate-spin text-indigo-500 shrink-0" />}
                                                 </div>
-                                                <Loader2 className="h-4 w-4 animate-spin text-indigo-500 shrink-0" />
+                                                {isFailed && task.error && (
+                                                    <p className="mt-2 text-[10px] text-red-600 dark:text-red-400 font-medium leading-tight line-clamp-2 bg-red-50/50 dark:bg-red-950/30 p-1.5 rounded-lg border border-red-100 dark:border-red-900/30 animate-in fade-in slide-in-from-top-1">
+                                                        {task.error}
+                                                    </p>
+                                                )}
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </ScrollArea>
                         </div>
@@ -678,7 +696,7 @@ export default function DashboardPage() {
                                     <Plus size={18} /> Add Source
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-[650px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-50/50 via-white to-white dark:from-slate-900 dark:via-slate-950 dark:to-slate-950 shadow-2xl">
+                            <DialogContent className="sm:max-w-[650px] max-h-[95vh] overflow-y-auto bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-50/50 via-white to-white dark:from-slate-900 dark:via-slate-950 dark:to-slate-950 shadow-2xl">
                                 <DialogHeader className="pb-2">
                                     <DialogTitle className="text-xl font-bold flex items-center gap-2">
                                         <div className="p-1.5 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-lg">
@@ -1155,155 +1173,156 @@ export default function DashboardPage() {
                             </DialogContent>
                         </Dialog>
                     </header>
-
-                    {/* Dashboard Stats — Premium Aesthetic */}
-                    {!loading && sources.length > 0 && (
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-100">
-                            {[
-                                { label: 'Total Sources', value: sources.length, icon: Database, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
-                                { label: 'Web Pages', value: sources.filter(s => s.source_type === 'website').length, icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-                                { label: 'YouTube Videos', value: sources.filter(s => s.source_type === 'youtube').length, icon: Youtube, color: 'text-red-500', bg: 'bg-red-500/10' },
-                                { label: 'Code Assets', value: sources.filter(s => s.source_type === 'github').length, icon: Github, color: 'text-slate-700 dark:text-slate-300', bg: 'bg-slate-500/10' },
-                            ].map((stat, i) => (
-                                <div key={i} className="group p-4 rounded-2xl bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50 hover:border-indigo-500/50 transition-all hover:-translate-y-1">
-                                    <div className="flex items-center gap-4">
-                                        <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
-                                            <stat.icon size={20} />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{stat.label}</p>
-                                            <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{stat.value}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Stats Row + Search + Filter */}
-                    {/* Source Stats Banner */}
-                    {!loading && sources.length > 0 && (() => {
-                        const groups = groupSources(sources);
-                        const githubCount = sources.filter(s => s.source_type === 'github').length;
-                        const pdfCount = sources.filter(s => s.source_type === 'pdf').length;
-                        const webCount = sources.filter(s => s.source_type === 'website').length;
-                        const ytCount = sources.filter(s => s.source_type === 'youtube').length;
-                        const igCount = sources.filter(s => s.source_type === 'instagram').length;
-                        return (
-                            <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm border border-slate-200/60 dark:border-slate-700/40 text-xs text-slate-600 dark:text-slate-400 font-medium">
-                                <Database size={14} className="text-indigo-500" />
-                                <span className="font-bold text-slate-800 dark:text-slate-200">{sources.length} sources</span>
-                                <span className="text-slate-300 dark:text-slate-600">in</span>
-                                <span className="font-bold text-slate-800 dark:text-slate-200">{groups.length} groups</span>
-                                <span className="hidden sm:inline text-slate-300 dark:text-slate-600">•</span>
-                                <div className="hidden sm:flex items-center gap-2 flex-wrap">
-                                    {githubCount > 0 && <span className="flex items-center gap-1"><Github size={12} />{githubCount}</span>}
-                                    {pdfCount > 0 && <span className="flex items-center gap-1 text-red-500"><FileText size={12} />{pdfCount}</span>}
-                                    {webCount > 0 && <span className="flex items-center gap-1 text-blue-500"><Globe size={12} />{webCount}</span>}
-                                    {ytCount > 0 && <span className="flex items-center gap-1 text-red-600"><Youtube size={12} />{ytCount}</span>}
-                                    {igCount > 0 && <span className="flex items-center gap-1 text-pink-500"><Instagram size={12} />{igCount}</span>}
-                                </div>
-                            </div>
-                        );
-                    })()}
-
-                    {/* Toolbar Row */}
-                    <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
-                        {/* Filter pills */}
-                        <div className="flex flex-wrap gap-1.5">
-                            {[
-                                { label: 'All', value: 'all', count: sources.length, color: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300', activeColor: 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900' },
-                                { label: 'PDF', value: 'pdf', count: sources.filter(s => s.source_type === 'pdf').length, color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400', activeColor: 'bg-red-600 text-white' },
-                                { label: 'Web', value: 'website', count: sources.filter(s => s.source_type === 'website').length, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', activeColor: 'bg-blue-600 text-white' },
-                                { label: 'YouTube', value: 'youtube', count: sources.filter(s => s.source_type === 'youtube').length, color: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400', activeColor: 'bg-orange-600 text-white' },
-                                { label: 'GitHub', value: 'github', count: sources.filter(s => s.source_type === 'github').length, color: 'bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300', activeColor: 'bg-slate-700 dark:bg-slate-300 text-white dark:text-slate-900' },
-                                { label: 'Social', value: 'instagram', count: sources.filter(s => s.source_type === 'instagram').length, color: 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400', activeColor: 'bg-pink-600 text-white' },
-                            ].filter(f => f.value === 'all' || f.count > 0).map(f => (
-                                <button key={f.value} onClick={() => setTypeFilter(f.value)}
-                                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-200 ${typeFilter === f.value ? f.activeColor + ' shadow-md scale-105' : f.color + ' hover:scale-105 hover:shadow-sm'}`}>
-                                    {f.label} {f.count > 0 && <span className="ml-0.5 opacity-75">({f.count})</span>}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Search + Sort + Select */}
-                        <div className="flex items-center gap-2 w-full lg:w-auto">
-                            <div className="relative flex-1 lg:w-72">
-                                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <input type="text" placeholder="Search sources..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
-                            </div>
-
-                            {/* Sort dropdown */}
-                            <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-                                <SelectTrigger className="w-[130px] h-9 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                                    <ArrowUpDown size={13} className="mr-1 text-slate-400" />
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="date">Newest First</SelectItem>
-                                    <SelectItem value="name">Name A-Z</SelectItem>
-                                    <SelectItem value="type">By Type</SelectItem>
-                                    <SelectItem value="files">Most Files</SelectItem>
-                                </SelectContent>
-                            </Select>
-
-                            {/* Select mode toggle */}
-                            <Button variant={selectMode ? "default" : "outline"} size="sm"
-                                onClick={() => { setSelectMode(!selectMode); setSelectedUrls(new Set()); }}
-                                className={`h-9 text-xs gap-1.5 font-bold transition-all ${selectMode ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/25' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                                {selectMode ? <X size={14} /> : <CheckSquare size={14} />}
-                                {selectMode ? 'Done' : 'Select'}
-                            </Button>
-                        </div>
-                    </div>
-
-                    {/* Select mode banner */}
-                    {selectMode && (() => {
-                        const selArray = Array.from(selectedUrls);
-                        const selSources = sources.filter(s => selArray.indexOf(s.source_url) >= 0);
-                        const typeCounts: Record<string, number> = {};
-                        selSources.forEach(s => { typeCounts[s.source_type] = (typeCounts[s.source_type] || 0) + 1; });
-                        return (
-                            <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/50 animate-in fade-in slide-in-from-top-2 duration-300">
-                                <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg">
-                                    <CheckSquare size={16} className="text-indigo-600 dark:text-indigo-400" />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="text-xs text-indigo-700 dark:text-indigo-300 font-medium">
-                                            Click cards to select • Click groups to select all files
-                                        </p>
-                                        <span className="text-[10px] text-indigo-500/70 dark:text-indigo-400/50 hidden sm:inline-flex items-center gap-1">
-                                            <kbd className="px-1 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 rounded text-[9px] font-mono border border-indigo-200 dark:border-indigo-800">Ctrl+A</kbd> select all
-                                            <kbd className="ml-1 px-1 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 rounded text-[9px] font-mono border border-indigo-200 dark:border-indigo-800">Esc</kbd> exit
-                                        </span>
-                                    </div>
-                                    {selectedUrls.size > 0 && (
-                                        <div className="flex items-center gap-1.5 mt-1">
-                                            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">{selectedUrls.size} selected</span>
-                                            {Object.entries(typeCounts).map(([type, count]) => (
-                                                <span key={type} className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 font-medium border border-indigo-200/50 dark:border-indigo-800/50">
-                                                    {count} {type}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <Button variant="ghost" size="sm" className="h-7 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 font-bold"
-                                    onClick={() => {
-                                        if (selectedUrls.size === sources.length) setSelectedUrls(new Set());
-                                        else setSelectedUrls(new Set(sources.map(s => s.source_url)));
-                                    }}>
-                                    {selectedUrls.size === sources.length ? 'Deselect All' : 'Select All'}
-                                </Button>
-                            </div>
-                        );
-                    })()}
+                    {/* Header ends here */}
                 </div>
 
                 <ScrollArea className="flex-1 px-6 md:px-10 pb-10">
                     <div className="space-y-8 py-6">
+                        {/* Stats & Controls — Now part of scrollable content */}
+                        
+                        {/* Dashboard Stats — Premium Aesthetic */}
+                        {!loading && sources.length > 0 && (
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-100">
+                                {[
+                                    { label: 'Total Sources', value: sources.length, icon: Database, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+                                    { label: 'Web Pages', value: sources.filter(s => s.source_type === 'website').length, icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+                                    { label: 'YouTube Videos', value: sources.filter(s => s.source_type === 'youtube').length, icon: Youtube, color: 'text-red-500', bg: 'bg-red-500/10' },
+                                    { label: 'Code Assets', value: sources.filter(s => s.source_type === 'github').length, icon: Github, color: 'text-slate-700 dark:text-slate-300', bg: 'bg-slate-500/10' },
+                                ].map((stat, i) => (
+                                    <div key={i} className="group p-4 rounded-2xl bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50 hover:border-indigo-500/50 transition-all hover:-translate-y-1">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
+                                                <stat.icon size={20} />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{stat.label}</p>
+                                                <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{stat.value}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Source Stats Banner */}
+                        {!loading && sources.length > 0 && (() => {
+                            const groups = groupSources(sources);
+                            const githubCount = sources.filter(s => s.source_type === 'github').length;
+                            const pdfCount = sources.filter(s => s.source_type === 'pdf').length;
+                            const webCount = sources.filter(s => s.source_type === 'website').length;
+                            const ytCount = sources.filter(s => s.source_type === 'youtube').length;
+                            const igCount = sources.filter(s => s.source_type === 'instagram').length;
+                            return (
+                                <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm border border-slate-200/60 dark:border-slate-700/40 text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                    <Database size={14} className="text-indigo-500" />
+                                    <span className="font-bold text-slate-800 dark:text-slate-200">{sources.length} sources</span>
+                                    <span className="text-slate-300 dark:text-slate-600">in</span>
+                                    <span className="font-bold text-slate-800 dark:text-slate-200">{groups.length} groups</span>
+                                    <span className="hidden sm:inline text-slate-300 dark:text-slate-600">•</span>
+                                    <div className="hidden sm:flex items-center gap-2 flex-wrap">
+                                        {githubCount > 0 && <span className="flex items-center gap-1"><Github size={12} />{githubCount}</span>}
+                                        {pdfCount > 0 && <span className="flex items-center gap-1 text-red-500"><FileText size={12} />{pdfCount}</span>}
+                                        {webCount > 0 && <span className="flex items-center gap-1 text-blue-500"><Globe size={12} />{webCount}</span>}
+                                        {ytCount > 0 && <span className="flex items-center gap-1 text-red-600"><Youtube size={12} />{ytCount}</span>}
+                                        {igCount > 0 && <span className="flex items-center gap-1 text-pink-500"><Instagram size={12} />{igCount}</span>}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Toolbar Row */}
+                        <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
+                            {/* Filter pills */}
+                            <div className="flex flex-wrap gap-1.5">
+                                {[
+                                    { label: 'All', value: 'all', count: sources.length, color: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300', activeColor: 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900' },
+                                    { label: 'PDF', value: 'pdf', count: sources.filter(s => s.source_type === 'pdf').length, color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400', activeColor: 'bg-red-600 text-white' },
+                                    { label: 'Web', value: 'website', count: sources.filter(s => s.source_type === 'website').length, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', activeColor: 'bg-blue-600 text-white' },
+                                    { label: 'YouTube', value: 'youtube', count: sources.filter(s => s.source_type === 'youtube').length, color: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400', activeColor: 'bg-orange-600 text-white' },
+                                    { label: 'GitHub', value: 'github', count: sources.filter(s => s.source_type === 'github').length, color: 'bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300', activeColor: 'bg-slate-700 dark:bg-slate-300 text-white dark:text-slate-900' },
+                                    { label: 'Social', value: 'instagram', count: sources.filter(s => s.source_type === 'instagram').length, color: 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400', activeColor: 'bg-pink-600 text-white' },
+                                ].filter(f => f.value === 'all' || f.count > 0).map(f => (
+                                    <button key={f.value} onClick={() => setTypeFilter(f.value)}
+                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-200 ${typeFilter === f.value ? f.activeColor + ' shadow-md scale-105' : f.color + ' hover:scale-105 hover:shadow-sm'}`}>
+                                        {f.label} {f.count > 0 && <span className="ml-0.5 opacity-75">({f.count})</span>}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Search + Sort + Select */}
+                            <div className="flex items-center gap-2 w-full lg:w-auto">
+                                <div className="relative flex-1 lg:w-72">
+                                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input type="text" placeholder="Search sources..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
+                                </div>
+
+                                {/* Sort dropdown */}
+                                <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                                    <SelectTrigger className="w-[130px] h-9 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                                        <ArrowUpDown size={13} className="mr-1 text-slate-400" />
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="date">Newest First</SelectItem>
+                                        <SelectItem value="name">Name A-Z</SelectItem>
+                                        <SelectItem value="type">By Type</SelectItem>
+                                        <SelectItem value="files">Most Files</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
+                                {/* Select mode toggle */}
+                                <Button variant={selectMode ? "default" : "outline"} size="sm"
+                                    onClick={() => { setSelectMode(!selectMode); setSelectedUrls(new Set()); }}
+                                    className={`h-9 text-xs gap-1.5 font-bold transition-all ${selectMode ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/25' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                                    {selectMode ? <X size={14} /> : <CheckSquare size={14} />}
+                                    {selectMode ? 'Done' : 'Select'}
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Select mode banner */}
+                        {selectMode && (() => {
+                            const selArray = Array.from(selectedUrls);
+                            const selSources = sources.filter(s => selArray.indexOf(s.source_url) >= 0);
+                            const typeCounts: Record<string, number> = {};
+                            selSources.forEach(s => { typeCounts[s.source_type] = (typeCounts[s.source_type] || 0) + 1; });
+                            return (
+                                <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg">
+                                        <CheckSquare size={16} className="text-indigo-600 dark:text-indigo-400" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="text-xs text-indigo-700 dark:text-indigo-300 font-medium">
+                                                Click cards to select • Click groups to select all files
+                                            </p>
+                                            <span className="text-[10px] text-indigo-500/70 dark:text-indigo-400/50 hidden sm:inline-flex items-center gap-1">
+                                                <kbd className="px-1 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 rounded text-[9px] font-mono border border-indigo-200 dark:border-indigo-800">Ctrl+A</kbd> select all
+                                                <kbd className="ml-1 px-1 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 rounded text-[9px] font-mono border border-indigo-200 dark:border-indigo-800">Esc</kbd> exit
+                                            </span>
+                                        </div>
+                                        {selectedUrls.size > 0 && (
+                                            <div className="flex items-center gap-1.5 mt-1">
+                                                <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">{selectedUrls.size} selected</span>
+                                                {Object.entries(typeCounts).map(([type, count]) => (
+                                                    <span key={type} className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 font-medium border border-indigo-200/50 dark:border-indigo-800/50">
+                                                        {count} {type}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <Button variant="ghost" size="sm" className="h-7 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 font-bold"
+                                        onClick={() => {
+                                            if (selectedUrls.size === sources.length) setSelectedUrls(new Set());
+                                            else setSelectedUrls(new Set(sources.map(s => s.source_url)));
+                                        }}>
+                                        {selectedUrls.size === sources.length ? 'Deselect All' : 'Select All'}
+                                    </Button>
+                                </div>
+                            );
+                        })()}
                         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                             {(() => {
                                 const filteredSources = sources.filter(s => {
