@@ -78,8 +78,10 @@ LINKPULSE/
 ├── frontend/           # Next.js Dashboard & Chat UI
 ├── docker-compose.yml  # Containerized Deployment
 └── .gitignore          # Production-ready exclusions
-```
 
+
+```
+Paper: https://zenodo.org/records/19138712
 ---
 
 ## 📄 License
