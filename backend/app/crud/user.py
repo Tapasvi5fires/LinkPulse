@@ -12,12 +12,34 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         result = await db.execute(select(User).filter(User.email == email))
         return result.scalars().first()
 
+    async def get_by_google_id(self, db: AsyncSession, *, google_id: str) -> Optional[User]:
+        result = await db.execute(select(User).filter(User.google_id == google_id))
+        return result.scalars().first()
+
+    async def get_by_github_id(self, db: AsyncSession, *, github_id: str) -> Optional[User]:
+        result = await db.execute(select(User).filter(User.github_id == github_id))
+        return result.scalars().first()
+
     async def create(self, db: AsyncSession, *, obj_in: UserCreate) -> User:
         db_obj = User(
             email=obj_in.email,
-            hashed_password=get_password_hash(obj_in.password),
+            hashed_password=get_password_hash(obj_in.password) if obj_in.password else None,
             full_name=obj_in.full_name,
             is_superuser=obj_in.is_superuser,
+        )
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
+
+    async def create_oauth(self, db: AsyncSession, *, email: str, full_name: str = None, avatar_url: str = None, google_id: str = None, github_id: str = None) -> User:
+        db_obj = User(
+            email=email,
+            full_name=full_name,
+            avatar_url=avatar_url,
+            google_id=google_id,
+            github_id=github_id,
+            hashed_password=None, # OAuth users don't need a password initially
         )
         db.add(db_obj)
         await db.commit()

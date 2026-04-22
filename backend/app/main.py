@@ -1,5 +1,15 @@
 import sys
 import asyncio
+import warnings
+
+# Global Warning Filters (Must be at the top to catch early imports)
+# Suppress "FutureWarning: All support for the `google.generativeai` package has ended..."
+warnings.filterwarnings("ignore", category=FutureWarning, message=".*google.generativeai.*")
+# Suppress Qdrant insecure connection warning for local dev
+warnings.filterwarnings("ignore", message="Api key is used with an insecure connection.")
+# Suppress Qdrant version mismatch warning
+warnings.filterwarnings("ignore", message=".*Qdrant client version.*is incompatible with server version.*")
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
@@ -25,17 +35,11 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
-# Global Warning Filters
-import warnings
-# Suppress "FutureWarning: All support for the `google.generativeai` package has ended..."
-# We will migrate to `google.genai` in a future update.
-warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
-
 # CORS Options
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+        allow_origins=[str(origin) for origin in settings.CORS_ORIGINS],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -45,10 +49,17 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.on_event("startup")
 async def startup_event():
+    from sqlalchemy import text
     async with engine.begin() as conn:
-        # Create tables (for development/MVP simple setup)
-        # In production, use Alembic migrations
+        # 1. Create tables if they don't exist
         await conn.run_sync(Base.metadata.create_all)
+        
+        # 2. Self-healing: Ensure new OAuth columns exist if table was already there
+        # This is a safe way to handle schema updates without full Alembic migrations yet
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR;"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR;"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id VARCHAR;"))
+        await conn.execute(text("ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL;"))
 
 @app.get("/")
 def read_root():

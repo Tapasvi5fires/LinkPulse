@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # Gemini Configuration
     GEMINI_API_KEY: Optional[str] = None
     
+    # Qdrant Configuration
+    QDRANT_URL: Optional[str] = "http://localhost:6334"
+    QDRANT_API_KEY: Optional[str] = None
+    QDRANT_COLLECTION: str = "linkpulse_vectors"
+    
     # Search Configuration
     TAVILY_API_KEY: Optional[str] = None
     
@@ -33,8 +38,30 @@ class Settings(BaseSettings):
     # Ports (used for CORS and other config)
     BACKEND_PORT: int = 8090
     FRONTEND_PORT: int = 3090
+    FRONTEND_URL: str = "http://localhost:3000"
+    BACKEND_URL: str = "http://localhost:8090"
 
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3090", "http://localhost:8090", "http://localhost:3000"]
+    # OAuth Configuration
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    GITHUB_CLIENT_ID: Optional[str] = None
+    GITHUB_CLIENT_SECRET: Optional[str] = None
+
+    BACKEND_CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:8090",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8090"
+    ]
+
+    @property
+    def CORS_ORIGINS(self) -> List[str]:
+        origins = self.BACKEND_CORS_ORIGINS.copy()
+        if self.FRONTEND_URL not in origins:
+            origins.append(self.FRONTEND_URL)
+        if self.BACKEND_URL not in origins:
+            origins.append(self.BACKEND_URL)
+        return list(set(origins))
 
     @property
     def ASYNC_DATABASE_URL(self) -> str:
@@ -42,6 +69,7 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
-        env_file = "../.env"
+        # Use an absolute path relative to this file to find the .env in the root
+        env_file = os.path.join(os.path.dirname(__file__), "../../../.env")
 
 settings = Settings()

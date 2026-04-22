@@ -49,7 +49,8 @@ async def summarize(
         # In a real app we'd query the DB more efficiently
         target_url = request.source_url.replace("\\", "/")
         found_text = ""
-        for meta in vector_db.metadata.values():
+        user_metadata = vector_db.get_user_metadata(current_user.id)
+        for meta in user_metadata.values():
             meta_url = meta.get("source_url", "").replace("\\", "/")
             if meta_url == target_url or target_url in meta_url:
                 found_text += meta.get("text", "") + "\n"

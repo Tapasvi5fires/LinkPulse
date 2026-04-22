@@ -1,8 +1,9 @@
 from fastapi import APIRouter
-from app.api.endpoints import auth, users, search, ingestion, chat, summary, knowledge_graph
+from app.api.endpoints import auth, users, search, ingestion, chat, summary, knowledge_graph, oauth
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(oauth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(search.router, prefix="/search", tags=["search"])
 api_router.include_router(ingestion.router, prefix="/ingestion", tags=["ingestion"])

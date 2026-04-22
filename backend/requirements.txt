@@ -20,7 +20,8 @@ langchain-community
 langchain-openai
 langchain-text-splitters
 sentence-transformers
-faiss-cpu
+qdrant-client
+
 rank_bm25
 # Ingestion
 playwright

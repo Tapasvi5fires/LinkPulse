@@ -1,92 +1,233 @@
-import faiss
-import numpy as np
-import pickle
 import os
-from typing import List, Dict, Any
+import logging
+from typing import List, Dict, Any, Optional
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
+from app.core.config import settings
+import uuid
+
+logger = logging.getLogger(__name__)
 
 class VectorDB:
-    def __init__(self, dimension: int = 384, index_path: str = "data/faiss_index.bin", metadata_path: str = "data/metadata.pkl"):
-        self.dimension = dimension
-        self.index_path = index_path
-        self.metadata_path = metadata_path
-        self.metadata: Dict[int, Dict[str, Any]] = {}  # Map ID -> Metadata
+    def __init__(self):
+        self.collection_name = settings.QDRANT_COLLECTION
         
-        # Create data directory if not exists
-        os.makedirs(os.path.dirname(index_path), exist_ok=True)
-        
-        import logging
-        logger = logging.getLogger(__name__)
-        
-        if os.path.exists(index_path) and os.path.exists(metadata_path):
-            try:
-                self.index = faiss.read_index(index_path)
-                with open(metadata_path, "rb") as f:
-                    self.metadata = pickle.load(f)
-                logger.info(f"Loaded VectorDB from disk. {self.index.ntotal} vectors, {len(self.metadata)} metadata entries.")
-            except Exception as e:
-                logger.error(f"Failed to load VectorDB from disk: {e}. Starting fresh.")
-                self.index = faiss.IndexFlatL2(dimension)
-                self.metadata = {}
+        # Determine if we are using cloud or local
+        if settings.QDRANT_API_KEY:
+            # Cloud/Remote with API Key
+            self.client = QdrantClient(
+                url=settings.QDRANT_URL,
+                api_key=settings.QDRANT_API_KEY
+            )
         else:
-            logger.info("VectorDB data not found. Creating new index.")
-            self.index = faiss.IndexFlatL2(dimension)
+            # Local or Remote without API Key
+            url = settings.QDRANT_URL
+            if not url:
+                url = "http://localhost:6334"
+            self.client = QdrantClient(url=url)
+            
+        self._ensure_collection()
+    
+    def _reconnect(self):
+        """Helper to re-initialize client if it loses attributes during reloads."""
+        try:
+            url = settings.QDRANT_URL or "http://localhost:6334"
+            if settings.QDRANT_API_KEY:
+                self.client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+            else:
+                self.client = QdrantClient(url=url)
+            logger.info("Qdrant client re-initialized.")
+        except Exception as e:
+            logger.error(f"Failed to reconnect to Qdrant: {e}")
+
+    def _ensure_collection(self):
+        try:
+            collections = self.client.get_collections().collections
+            collection_names = [c.name for c in collections]
+            
+            if self.collection_name not in collection_names:
+                # Default dimension to 384 (all-MiniLM-L6-v2)
+                # If using Gemini, it should ideally be 768, but we match the current working setup.
+                logger.info(f"Creating collection: {self.collection_name}")
+                self.client.create_collection(
+                    collection_name=self.collection_name,
+                    vectors_config=models.VectorParams(
+                        size=384,
+                        distance=models.Distance.COSINE
+                    )
+                )
+        except Exception as e:
+            logger.error(f"Error ensuring Qdrant collection: {e}")
 
     def add(self, embeddings: List[List[float]], metadatas: List[Dict[str, Any]]):
         if not embeddings:
             return
             
-        vectors = np.array(embeddings).astype('float32')
-        start_id = self.index.ntotal
-        self.index.add(vectors)
-        
-        for i, meta in enumerate(metadatas):
-            self.metadata[start_id + i] = meta
+        points = []
+        for i, (emb, meta) in enumerate(zip(embeddings, metadatas)):
+            point_id = str(uuid.uuid4())
+            points.append(models.PointStruct(
+                id=point_id,
+                vector=emb,
+                payload=meta
+            ))
             
-        self.save()
+        self.client.upsert(
+            collection_name=self.collection_name,
+            points=points
+        )
+        logger.info(f"Added {len(points)} vectors to Qdrant.")
 
-    def search(self, query_vector: List[float], k: int = 5) -> List[Dict[str, Any]]:
-        vector = np.array([query_vector]).astype('float32')
-        distances, indices = self.index.search(vector, k)
+    def search(self, query_vector: List[float], k: int = 5, user_id: Optional[int] = None, source_urls: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        # Build Filter
+        must_filters = []
+        if user_id is not None:
+            must_filters.append(models.FieldCondition(
+                key="user_id",
+                match=models.MatchValue(value=user_id)
+            ))
+            
+        if source_urls:
+            # Match any of the provided source URLs
+            must_filters.append(models.Filter(
+                should=[
+                    models.FieldCondition(key="source_url", match=models.MatchValue(value=url))
+                    for url in source_urls
+                ] + [
+                    models.FieldCondition(key="url", match=models.MatchValue(value=url))
+                    for url in source_urls
+                ]
+            ))
+            
+        query_filter = models.Filter(must=must_filters) if must_filters else None
+        
+        # Self-healing check and diagnostics
+        if not hasattr(self.client, 'search'):
+            logger.warning(f"Qdrant client diagnostic - Type: {type(self.client)}, Dir: {dir(self.client)[:10]}...")
+            self._reconnect()
+
+        # Try multiple methods in order of modern preference
+        try:
+            if hasattr(self.client, 'search'):
+                search_result = self.client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_vector,
+                    query_filter=query_filter,
+                    limit=k,
+                    with_payload=True
+                )
+            elif hasattr(self.client, 'query_points'):
+                search_result = self.client.query_points(
+                    collection_name=self.collection_name,
+                    query=query_vector,
+                    query_filter=query_filter,
+                    limit=k,
+                    with_payload=True
+                ).points
+            else:
+                # Last resort: direct access to internal http client if library is broken
+                logger.error("All standard Qdrant methods missing! Attempting emergency recovery.")
+                self._reconnect()
+                search_result = self.client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_vector,
+                    query_filter=query_filter,
+                    limit=k,
+                    with_payload=True
+                )
+        except Exception as e:
+            logger.error(f"Critical Qdrant search failure: {e}")
+            return []
         
         results = []
-        for i, idx in enumerate(indices[0]):
-            if idx != -1:
-                meta = self.metadata.get(idx, {})
-                results.append({
-                    "id": int(idx),
-                    "score": float(distances[0][i]),
-                    "metadata": meta
-                })
+        for hit in search_result:
+            results.append({
+                "id": hit.id,
+                "score": hit.score,
+                "metadata": hit.payload
+            })
         return results
 
-    def delete_source(self, source_url: str) -> int:
+    def delete_source(self, source_url: str, user_id: int) -> int:
         """
-        Remove entries with matching source_url from metadata.
-        Returns number of removed entries.
+        Remove entries with matching source_url AND user_id.
         """
-        to_delete = []
-        for i, meta in self.metadata.items():
-            # Check source_url, url, OR the fallback ID used by get_ingested_sources
-            fallback_id = f"doc_{meta.get('title', 'unknown')}"
+        delete_filter = models.Filter(
+            must=[
+                models.FieldCondition(key="user_id", match=models.MatchValue(value=user_id)),
+                models.Filter(
+                    should=[
+                        models.FieldCondition(key="source_url", match=models.MatchValue(value=source_url)),
+                        models.FieldCondition(key="url", match=models.MatchValue(value=source_url)),
+                        # Fallback match for the old doc_... titles
+                        models.FieldCondition(key="title", match=models.MatchValue(value=source_url[4:] if source_url.startswith("doc_") else source_url))
+                    ]
+                )
+            ]
+        )
+        
+        # To get count, we scroll first
+        points, _ = self.client.scroll(
+            collection_name=self.collection_name,
+            scroll_filter=delete_filter,
+            limit=10000,
+            with_payload=False
+        )
+        
+        if not points:
+            return 0
             
-            if (meta.get("source_url") == source_url or 
-                meta.get("url") == source_url or 
-                fallback_id == source_url):
-                to_delete.append(i)
-                
-        for i in to_delete:
-            del self.metadata[i]
-            
-        if to_delete:
-            self.save()
-            import logging
-            logging.getLogger(__name__).info(f"Removed {len(to_delete)} vectors for source {source_url}")
-            
-        return len(to_delete)
+        point_ids = [p.id for p in points]
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=models.PointIdsList(points=point_ids)
+        )
+        
+        logger.info(f"Removed {len(point_ids)} vectors for source {source_url}")
+        return len(point_ids)
+
+    # --- Compatibility Methods ---
+    
+    @property
+    def metadata(self):
+        """
+        DANGEROUS: This is a hack for backward compatibility. 
+        It only returns all metadata for the 'current' operation if iterated. 
+        In Qdrant, we should use get_user_metadata(user_id) instead.
+        """
+        logger.warning("Direct access to vector_db.metadata is deprecated. Use get_user_metadata(user_id) instead.")
+        # We can't easily return a live dict that behaves like the old one without user_id.
+        # However, for some endpoints that iterate over ALL metadata (Admin-like), we provide this.
+        return self.get_all_metadata()
+
+    def get_user_metadata(self, user_id: int) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetch all metadata chunks for a user.
+        """
+        points, _ = self.client.scroll(
+            collection_name=self.collection_name,
+            scroll_filter=models.Filter(
+                must=[models.FieldCondition(key="user_id", match=models.MatchValue(value=user_id))]
+            ),
+            limit=10000,
+            with_payload=True
+        )
+        
+        return {p.id: p.payload for p in points}
+
+    def get_all_metadata(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetch all metadata chunks (use sparingly).
+        """
+        points, _ = self.client.scroll(
+            collection_name=self.collection_name,
+            limit=10000,
+            with_payload=True
+        )
+        return {p.id: p.payload for p in points}
 
     def save(self):
-        faiss.write_index(self.index, self.index_path)
-        with open(self.metadata_path, "wb") as f:
-            pickle.dump(self.metadata, f)
+        """No-op for Qdrant."""
+        pass
 
 vector_db = VectorDB()

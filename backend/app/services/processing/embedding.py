@@ -6,7 +6,7 @@ import warnings
 
 # Suppress "FutureWarning: All support for the `google.generativeai` package has ended..."
 # We will migrate to `google.genai` in a future update, but for now we silence the noise.
-warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
+warnings.filterwarnings("ignore", category=FutureWarning, message=".*google.generativeai.*")
 
 try:
     import google.generativeai as genai

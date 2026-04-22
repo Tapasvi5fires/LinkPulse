@@ -56,6 +56,7 @@ export default function DashboardPage() {
     const [summaryContent, setSummaryContent] = useState("");
     const [summarizing, setSummarizing] = useState(false);
     const router = useRouter();
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090';
 
     const [contentOpen, setContentOpen] = useState(false);
     const [contentData, setContentData] = useState("");
@@ -83,7 +84,7 @@ export default function DashboardPage() {
         if (!token) return;
 
         try {
-            const response = await fetch('http://localhost:8090/api/v1/ingestion/tasks', {
+            const response = await fetch(`${apiUrl}/api/v1/ingestion/tasks`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -110,7 +111,7 @@ export default function DashboardPage() {
 
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:8090/api/v1/ingestion/sources', {
+            const response = await fetch(`${apiUrl}/api/v1/ingestion/sources`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -173,7 +174,7 @@ export default function DashboardPage() {
         const token = localStorage.getItem('token');
 
         try {
-            const endpoint = 'http://localhost:8090/api/v1/ingestion/url';
+            const endpoint = `${apiUrl}/api/v1/ingestion/url`;
             const body = { source_url: urlInput, source_type: type, depth: parseInt(depthInput) };
 
             const response = await fetch(endpoint, {
@@ -213,7 +214,7 @@ export default function DashboardPage() {
         let successCount = 0;
         try {
             for (const url of urls) {
-                const response = await fetch('http://localhost:8090/api/v1/ingestion/url', {
+                const response = await fetch(`${apiUrl}/api/v1/ingestion/url`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -244,7 +245,7 @@ export default function DashboardPage() {
         try {
             const token = localStorage.getItem('token');
             // Ensure trailing slash to avoid 307 redirect which might strip headers
-            const response = await fetch('http://localhost:8090/api/v1/summary/', {
+            const response = await fetch(`${apiUrl}/api/v1/summary/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -300,7 +301,7 @@ export default function DashboardPage() {
         // For other types, fetch extracted text
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:8090/api/v1/ingestion/content', {
+            const response = await fetch(`${apiUrl}/api/v1/ingestion/content`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -328,7 +329,7 @@ export default function DashboardPage() {
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:8090/api/v1/ingestion/sources', {
+            const response = await fetch(`${apiUrl}/api/v1/ingestion/sources`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
@@ -492,7 +493,7 @@ export default function DashboardPage() {
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:8090/api/v1/ingestion/sources/bulk-delete', {
+            const response = await fetch(`${apiUrl}/api/v1/ingestion/sources/bulk-delete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -521,7 +522,7 @@ export default function DashboardPage() {
         try {
             const token = localStorage.getItem('token');
             const urls = group.sources.map(s => s.source_url);
-            const response = await fetch('http://localhost:8090/api/v1/ingestion/sources/bulk-delete', {
+            const response = await fetch(`${apiUrl}/api/v1/ingestion/sources/bulk-delete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1082,7 +1083,7 @@ export default function DashboardPage() {
                                         </div>
                                     ) : viewingSource?.type === 'pdf' && viewingSource?.downloadUrl ? (
                                         <iframe
-                                            src={`http://localhost:8090${viewingSource.downloadUrl}`}
+                                            src={`${apiUrl}${viewingSource.downloadUrl}`}
                                             className="w-full h-full border-0"
                                             title="PDF Viewer"
                                         />
@@ -1694,7 +1695,7 @@ export default function DashboardPage() {
                                                             </Button>
                                                             {group.sources[0].download_url && (
                                                                 <Button variant="secondary" size="sm" className="w-full text-xs h-8 items-center gap-1.5 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300 dark:hover:bg-green-900/40 transition-colors rounded-lg font-semibold"
-                                                                    onClick={() => window.open(`http://localhost:8090${group.sources[0].download_url}`, '_blank')}>
+                                                                    onClick={() => window.open(`${apiUrl}${group.sources[0].download_url}`, '_blank')}>
                                                                     <ExternalLink size={12} className="shrink-0" /> Download
                                                                 </Button>
                                                             )}

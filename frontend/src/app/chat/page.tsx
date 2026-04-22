@@ -228,11 +228,11 @@ export default function ChatPage() {
 
         const userMessage = input;
         setInput('');
-        setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+        setMessages(prev => [...prev, 
+            { role: 'user', content: userMessage },
+            { role: 'assistant', content: '_researching_' } // Use a special flag
+        ]);
         setIsLoading(true);
-
-        // Add a placeholder assistant message that we'll update
-        setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
         try {
             const token = getToken();
@@ -279,6 +279,7 @@ export default function ChatPage() {
                             }
                         } else if (line.startsWith('data:')) {
                             const token = line.substring(5);
+                            if (assistantMessage === '_researching_') assistantMessage = '';
                             assistantMessage += token;
 
                             // Update the last message in the list
@@ -860,37 +861,34 @@ export default function ChatPage() {
                                                     }`}
                                             >
                                                 <div className="prose dark:prose-invert max-w-none prose-sm prose-p:text-inherit prose-pre:bg-black/20 prose-pre:text-white prose-code:bg-black/20 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-a:text-blue-400 prose-a:underline hover:prose-a:text-blue-300 transition-colors">
-                                                    <ReactMarkdown
-                                                        remarkPlugins={[remarkGfm]}
-                                                        components={{
-                                                            a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />
-                                                        }}
-                                                    >
-                                                        {message.content}
-                                                    </ReactMarkdown>
+                                                    {message.content === '_researching_' ? (
+                                                        <div className="flex flex-col gap-2 py-1">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-400 [animation-delay:-0.3s]"></div>
+                                                                <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-purple-400 [animation-delay:-0.15s]"></div>
+                                                                <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-pink-400"></div>
+                                                                <span className="text-[10px] font-black text-indigo-500 ml-2 uppercase tracking-widest animate-pulse">Neural Engine Researching...</span>
+                                                            </div>
+                                                            {webSearch && (
+                                                                <p className="text-[9px] font-bold text-blue-400/80 italic animate-pulse">
+                                                                    Exploring live web search trajectories...
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <ReactMarkdown
+                                                            remarkPlugins={[remarkGfm]}
+                                                            components={{
+                                                                a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />
+                                                            }}
+                                                        >
+                                                            {message.content}
+                                                        </ReactMarkdown>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
                                     ))}
-                                    {isLoading && (
-                                        <div className="flex items-start gap-4 animate-in fade-in slide-in-from-bottom-2">
-                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20 ring-1 ring-white/10">
-                                                <Bot size={20} />
-                                            </div>
-                                            <div className="flex flex-col gap-2 rounded-2xl bg-white/10 backdrop-blur-md px-6 py-4 border border-white/10 shadow-xl">
-                                                <div className="flex items-center gap-1">
-                                                    <div className="h-2 w-2 animate-bounce rounded-full bg-blue-400 [animation-delay:-0.3s]"></div>
-                                                    <div className="h-2 w-2 animate-bounce rounded-full bg-purple-400 [animation-delay:-0.15s]"></div>
-                                                    <div className="h-2 w-2 animate-bounce rounded-full bg-pink-400"></div>
-                                                </div>
-                                                {webSearch && (
-                                                    <p className="text-[10px] font-bold text-blue-300 animate-pulse tracking-wide uppercase italic">
-                                                        Researching live web...
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
                                 </>
                             )}
                         </div>

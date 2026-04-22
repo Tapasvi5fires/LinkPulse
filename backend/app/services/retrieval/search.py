@@ -26,7 +26,7 @@ class SearchService:
         # Allow manual triggering of BM25 index update
         # This is expensive and should be done in background
         docs = []
-        for meta in vector_db.metadata.values():
+        for meta in vector_db.get_all_metadata().values():
             if "text" in meta:
                 docs.append(meta["text"])
         
@@ -40,26 +40,14 @@ class SearchService:
         # 1. Vector Search
         query_embedding = embedding_service.embed_query(query)
         
-        # If filtering, we need to fetch more results to ensure we find enough matching documents
-        search_k = k * 20 if filter_source else k * 10
-        vector_results = vector_db.search(query_embedding, k=search_k)
-        
-        # Filter by user_id if provided
-        if user_id is not None:
-            vector_results = [
-                res for res in vector_results
-                if res["metadata"].get("user_id") == user_id
-            ]
-
-        # Filter by source if requested
+        # Convert filter_source to list for Qdrant
+        source_urls = None
         if filter_source:
-            # Normalize to list
-            filters = filter_source if isinstance(filter_source, list) else [filter_source]
-            
-            vector_results = [
-                res for res in vector_results 
-                if res["metadata"].get("source_url") in filters or res["metadata"].get("url") in filters
-            ]
+            source_urls = filter_source if isinstance(filter_source, list) else [filter_source]
+
+        # Fetch more candidates than requested for reranking (e.g., k * 3)
+        search_k = k * 3
+        vector_results = vector_db.search(query_embedding, k=search_k, user_id=user_id, source_urls=source_urls)
         
         # 2. BM25 Search (Optional/Hybrid)
         bm25_results = []

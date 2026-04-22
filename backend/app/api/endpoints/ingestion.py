@@ -175,10 +175,8 @@ async def get_ingested_sources(
     # Extract unique sources from metadata, filtered by user_id
     logger.debug(f"Fetching sources for user: {current_user.id}")
     sources = {}
-    for i, meta in vector_db.metadata.items():
-        # Only include sources belonging to the current user
-        if meta.get("user_id") != current_user.id:
-            continue
+    user_metadata = vector_db.get_user_metadata(current_user.id)
+    for i, meta in user_metadata.items():
             
         source_url = meta.get("source_url") or meta.get("url") or f"doc_{meta.get('title', 'unknown')}"
         
@@ -266,10 +264,8 @@ async def get_source_content(
     
     # Collect all chunks for this source, sorted by chunk_index
     chunks = []
-    for i, meta in vector_db.metadata.items():
-        # Security: Only allow if it belongs to the current user
-        if meta.get("user_id") != current_user.id:
-            continue
+    user_metadata = vector_db.get_user_metadata(current_user.id)
+    for i, meta in user_metadata.items():
             
         meta_url = meta.get("source_url") or meta.get("url", "")
         if meta_url == source_url:
@@ -307,22 +303,11 @@ async def delete_source(
     logger.info(f"Deleting source: {source_url}")
     
     # 1. Remove from VectorDB (with ownership verification)
-    # We first collect all IDs belonging to this user and source
-    to_delete = [
-        idx for idx, meta in vector_db.metadata.items()
-        if meta.get("user_id") == current_user.id and 
-           (meta.get("source_url") == source_url or meta.get("url") == source_url)
-    ]
+    deleted_count = vector_db.delete_source(source_url, current_user.id)
     
-    if not to_delete:
+    if deleted_count == 0:
         logger.warning(f"Source not found or access denied for deletion: {source_url} (User: {current_user.id})")
         return {"message": "Source not found or access denied", "vectors_removed": 0}
-
-    for idx in to_delete:
-        del vector_db.metadata[idx]
-    
-    vector_db.save()
-    deleted_count = len(to_delete)
     
     # 2. Delete file if it exists in storage (Normalize paths for safety)
     # Handle both forward and backward slashes
@@ -358,18 +343,9 @@ async def bulk_delete_sources(
     for source_url in request.source_urls:
         logger.info(f"Bulk deleting: {source_url} for user {current_user.id}")
         
-        # Ownership-aware deletion
-        to_delete = [
-            idx for idx, meta in vector_db.metadata.items()
-            if meta.get("user_id") == current_user.id and 
-               (meta.get("source_url") == source_url or meta.get("url") == source_url)
-        ]
-        
-        for idx in to_delete:
-            del vector_db.metadata[idx]
-            
-        if to_delete:
-            total_deleted += len(to_delete)
+        deleted = vector_db.delete_source(source_url, current_user.id)
+        if deleted:
+            total_deleted += deleted
         
         # Delete file from storage if applicable
         normalized_source = source_url.replace("\\", "/")

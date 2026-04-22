@@ -6,3 +6,6 @@ uvicorn app.main:app --host 0.0.0.0 --port 8090 --reload
 
 cd frontend && npm run dev
 npm run dev
+
+running docker local one 
+docker compose -f docker-compose.local.yml up -d --build

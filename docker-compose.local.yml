@@ -1,3 +1,7 @@
+# CPU-Optimized Local Development Environment
+# Use this for much faster builds on machines without NVIDIA GPUs.
+# Run with: docker compose -f docker-compose.local.yml up -d
+
 version: '3.8'
 
 services:
@@ -37,7 +41,7 @@ services:
   backend:
     build: 
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.local # Using the CPU-optimized version
     restart: always
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
@@ -58,7 +62,7 @@ services:
   worker:
     build: 
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.local # Using the CPU-optimized version
     restart: always
     command: celery -A app.core.celery_app worker --loglevel=info
     volumes:

@@ -48,9 +48,8 @@ async def chat_stream(
     
     # 1. Build sources summary
     source_counts: dict = {}
-    for meta in vector_db.metadata.values():
-        if meta.get("user_id") != current_user.id:
-            continue
+    user_metadata = vector_db.get_user_metadata(current_user.id)
+    for meta in user_metadata.values():
         src = meta.get("source_url") or meta.get("url") or meta.get("title", "unknown")
         display_name = src
         if "data/storage" in src.replace("\\", "/"):
@@ -175,9 +174,8 @@ async def chat(
     # Filter by user_id
     all_sources_summary = ""
     source_counts: dict = {}
-    for meta in vector_db.metadata.values():
-        if meta.get("user_id") != current_user.id:
-            continue
+    user_metadata = vector_db.get_user_metadata(current_user.id)
+    for meta in user_metadata.values():
             
         src = meta.get("source_url") or meta.get("url") or meta.get("title", "unknown")
         source_type = meta.get("source_type", "unknown")

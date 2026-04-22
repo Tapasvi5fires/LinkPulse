@@ -42,12 +42,13 @@ export function CommandPalette() {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [recentSources, setRecentSources] = useState<any[]>([]);
     const router = useRouter();
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090';
 
     const fetchRecentSources = async () => {
         const token = localStorage.getItem('token');
         if (!token) return;
         try {
-            const response = await fetch('http://localhost:8090/api/v1/ingestion/sources', {
+            const response = await fetch(`${apiUrl}/api/v1/ingestion/sources`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {

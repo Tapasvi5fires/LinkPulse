@@ -55,11 +55,7 @@ async def get_knowledge_graph(
     """
     try:
         # Filter metadata by user_id
-        full_metadata = vector_db.metadata
-        metadata = {
-            idx: meta for idx, meta in full_metadata.items()
-            if meta.get("user_id") == current_user.id
-        }
+        metadata = vector_db.get_user_metadata(current_user.id)
 
         # --- Step 1: Aggregate chunks into unique sources ---
         source_map: Dict[str, Dict[str, Any]] = {}

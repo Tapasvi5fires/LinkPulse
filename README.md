@@ -70,16 +70,36 @@ npm run dev
 
 ---
 
+## 🐳 Docker Deployment
+
+### 💻 Local Development (CPU Optimized)
+If you are developing locally and want **lightning-fast builds** without downloading massive GPU/CUDA binaries, use the local optimized configuration:
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build
+```
+*This uses `Dockerfile.local` which installs the CPU-only version of PyTorch, reducing build time by ~80%.*
+
+### 🚀 Standard Deployment
+For a standard deployment (includes full AI libraries):
+
+```bash
+docker compose up -d --build
+```
+
+---
+
 ## 📁 Project Structure
 
 ```text
 LINKPULSE/
-├── backend/            # FastAPI Engine & RAG Pipeline
-├── frontend/           # Next.js Dashboard & Chat UI
-├── docker-compose.yml  # Containerized Deployment
-└── .gitignore          # Production-ready exclusions
-
-
+├── backend/                # FastAPI Engine & RAG Pipeline
+│   ├── Dockerfile.local    # CPU-optimized Dockerfile
+│   └── ...
+├── frontend/               # Next.js Dashboard & Chat UI
+├── docker-compose.yml      # Standard Deployment
+├── docker-compose.local.yml # Local CPU-optimized Deployment
+└── .gitignore              # Production-ready exclusions
 ```
 Paper: https://zenodo.org/records/19138712
 ---

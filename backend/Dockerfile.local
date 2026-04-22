@@ -1,0 +1,33 @@
+# Optimized Dockerfile for Local CPU Development
+# This version is much faster to build as it avoids massive GPU/CUDA binaries.
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+# These are required for the AI ingestion pipeline (Tesseract for OCR, FFmpeg for Video)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    tesseract-ocr \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# OPTIMIZATION: Install CPU-only version of Torch first.
+# Standard 'torch' includes ~2GB of CUDA binaries. This version is ~150MB.
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Environment variables
+ENV PYTHONPATH=/app
+
+# Default command (usually overridden by docker-compose)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

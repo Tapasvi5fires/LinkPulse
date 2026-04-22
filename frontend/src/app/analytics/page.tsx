@@ -17,13 +17,14 @@ interface DataSource {
 export default function AnalyticsPage() {
     const [sources, setSources] = useState<DataSource[]>([]);
     const [loading, setLoading] = useState(true);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090';
 
     useEffect(() => {
         const fetchSources = async () => {
             const token = localStorage.getItem('token');
             if (!token) { setLoading(false); return; }
             try {
-                const res = await fetch('http://localhost:8090/api/v1/ingestion/sources', {
+                const res = await fetch(`${apiUrl}/api/v1/ingestion/sources`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {
