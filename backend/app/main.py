@@ -68,14 +68,14 @@ try:
         candidates = []
         pooler_host = "aws-1-ap-south-1.pooler.supabase.com"
         
-        # Spec 1: Official Session Mode + Identity Options
-        options = "?ssl=require&options=-c%20search_path=public&application_name=linkpulse"
+        # Spec 1: Official Session Mode
+        options = "?ssl=require"
         candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{pooler_host}:5432/postgres{options}")
         
-        # Spec 2: Transaction Mode + Identity Options
+        # Spec 2: Transaction Mode
         candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{pooler_host}:6543/postgres{options}")
         
-        # Spec 3: Resolved IP + Identity Options
+        # Spec 3: Resolved IP
         if pooler_host in resolved_ips:
             ip = resolved_ips[pooler_host]
             candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{ip}:5432/postgres{options}")
