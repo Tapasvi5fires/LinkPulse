@@ -152,9 +152,14 @@ class Settings(BaseSettings):
                 separator = "&" if "?" in url else "?"
                 url += f"{separator}ssl=require"
             
-            # 4. Ensure we are using the pooler port
-            if "pooler.supabase.com" in url and ":6543" not in url and ":5432" not in url:
-                url = url.replace(".com/", ".com:6543/")
+            # 4. Force Pooler Port (6543 is Transaction Mode, 5432 is Session Mode)
+            # Transaction Mode is REQUIRED for high-concurrency apps (FastAPI + Celery)
+            if "pooler.supabase.com" in url:
+                if ":5432" in url:
+                    url = url.replace(":5432", ":6543")
+                    print("FORCED: Switched from Session Mode (5432) to Transaction Mode (6543) for Supabase Pooler.")
+                elif ":6543" not in url:
+                    url = url.replace(".com/", ".com:6543/")
             
             # 5. Regional Auto-Detector (The "Safety Net")
             # If the user specified ap-south-1 but the project is in us-east-1 (or vice versa),
