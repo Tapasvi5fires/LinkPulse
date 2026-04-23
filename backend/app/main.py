@@ -41,25 +41,41 @@ try:
             "aws-0-ap-south-1.pooler.supabase.com",
             "db.knytuuxlmmqyfqhtrmtt.supabase.co"
         ]
+        resolved_ips = {}
         for h in hosts_to_check:
             try:
                 ip = socket.gethostbyname(h)
                 logger.info(f"DNS CHECK: {h} resolves to {ip}")
+                resolved_ips[h] = ip
             except Exception as e:
-                logger.warning(f"DNS CHECK: {h} FAILED to resolve: {e}")
+                logger.warning(f"DNS CHECK: {h} FAILED (System DNS): {e}")
+                # Fallback to manual IP check
+                try:
+                    import subprocess
+                    out = subprocess.check_output(["nslookup", h], timeout=5).decode()
+                    if "Address:" in out:
+                        ip = out.split("Address:")[-1].strip().split()[0]
+                        logger.info(f"DNS CHECK: {h} resolved via NSLOOKUP: {ip}")
+                        resolved_ips[h] = ip
+                except:
+                    pass
 
         # 2. Official Spec Candidates
         project_ref = "knytuuxlmmqyfqhtrmtt"
         password = "LinkPulse2024"
         
-        candidates = [
-            # Spec 1: Supavisor Session Mode (Port 5432) - RECOMMENDED for Render
-            f"postgresql+asyncpg://postgres.{project_ref}:{password}@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?ssl=require",
-            # Spec 2: Supavisor Transaction Mode (Port 6543)
-            f"postgresql+asyncpg://postgres.{project_ref}:{password}@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?ssl=require",
-            # Spec 3: Just in case it's in US-EAST-1
-            f"postgresql+asyncpg://postgres.{project_ref}:{password}@aws-0-us-east-1.pooler.supabase.com:5432/postgres?ssl=require"
-        ]
+        # Build candidates using both Hostname and Resolved IP
+        candidates = []
+        pooler_host = "aws-0-ap-south-1.pooler.supabase.com"
+        
+        # Use Hostname
+        candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{pooler_host}:5432/postgres?ssl=require")
+        candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{pooler_host}:6543/postgres?ssl=require")
+        
+        # Use Resolved IP (if available) - This is the ultimate fallback
+        if pooler_host in resolved_ips:
+            ip = resolved_ips[pooler_host]
+            candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{ip}:5432/postgres?ssl=require")
 
         for attempt, url in enumerate(candidates):
             log_url = url.replace(password, "****")
