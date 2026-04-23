@@ -20,21 +20,27 @@ _model = None
 
 class EmbeddingService:
     def __init__(self):
-        # Determine provider: 'gemini' if key present and configured to use it, else 'local'
-        # For now, default to local unless explicitly requested or if local is too heavy?
-        # Actually, let's stick to local sentence-transformers as primary to save API costs/latency
-        # But provide the option.
-        self.use_gemini = bool(settings.GEMINI_API_KEY) and os.getenv("USE_GEMINI_EMBEDDINGS", "False").lower() == "true"
+        # Determine provider: Default to Gemini in production/cloud to save RAM
+        # On Render Free Tier (512MB), we MUST use Gemini to avoid OOM crashes
+        self.use_gemini = bool(settings.GEMINI_API_KEY) and os.getenv("USE_GEMINI_EMBEDDINGS", "True").lower() == "true"
         
         if self.use_gemini:
+             logger.info("Using Gemini Cloud Embeddings (RAM-safe mode)")
              genai.configure(api_key=settings.GEMINI_API_KEY)
+        else:
+             logger.warning("Using Local Embeddings (High RAM usage - not recommended for Free Tier)")
         
     def _get_local_model(self):
         global _model
         if _model is None:
-            from sentence_transformers import SentenceTransformer
-            # Use a lightweight model for default
-            _model = SentenceTransformer('all-MiniLM-L6-v2')
+            try:
+                logger.info("Loading local SentenceTransformer model... (Memory intensive)")
+                from sentence_transformers import SentenceTransformer
+                # Use a lightweight model for default
+                _model = SentenceTransformer('all-MiniLM-L6-v2')
+            except ImportError:
+                logger.error("sentence_transformers not installed. Please install it for local embeddings.")
+                raise
         return _model
 
     def embed_query(self, text: str) -> List[float]:
@@ -48,21 +54,27 @@ class EmbeddingService:
                 )
                 return result['embedding']
             
-            # Local fallback
+            # Local fallback (if not using Gemini)
             model = self._get_local_model()
             return model.encode(text).tolist()
         except Exception as e:
-            logger.error(f"Error embedding query: {e}")
-            # Fallback to local if API fails?
-            model = self._get_local_model()
-            return model.encode(text).tolist()
+            logger.error(f"Embedding failed: {e}")
+            if not self.use_gemini:
+                logger.info("Attempting Emergency Fallback to Gemini...")
+                try:
+                    result = genai.embed_content(
+                        model="models/text-embedding-004",
+                        content=text,
+                        task_type="retrieval_query"
+                    )
+                    return result['embedding']
+                except Exception as gem_e:
+                    logger.error(f"Gemini fallback also failed: {gem_e}")
+            raise
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         try:
             if self.use_gemini:
-                # Batch embedding with Gemini
-                # Note: Gemini has batch limits, might need chunking here
-                # For now, simple loop or batch if supported
                 embeddings = []
                 for text in texts:
                     result = genai.embed_content(
@@ -78,9 +90,21 @@ class EmbeddingService:
             embeddings = model.encode(texts)
             return embeddings.tolist()
         except Exception as e:
-            logger.error(f"Error embedding documents: {e}")
-            model = self._get_local_model()
-            embeddings = model.encode(texts)
-            return embeddings.tolist()
+            logger.error(f"Batch embedding failed: {e}")
+            if not self.use_gemini:
+                logger.info("Attempting Emergency Fallback to Gemini for documents...")
+                try:
+                    embeddings = []
+                    for text in texts:
+                        result = genai.embed_content(
+                            model="models/text-embedding-004",
+                            content=text,
+                            task_type="retrieval_document"
+                        )
+                        embeddings.append(result['embedding'])
+                    return embeddings
+                except Exception as gem_e:
+                    logger.error(f"Gemini fallback failed: {gem_e}")
+            raise
 
 embedding_service = EmbeddingService()

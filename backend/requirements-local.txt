@@ -1,0 +1,4 @@
+# Heavy requirements for local high-precision embeddings
+-r requirements.txt
+sentence-transformers
+torch

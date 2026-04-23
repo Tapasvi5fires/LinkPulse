@@ -84,6 +84,7 @@ Add these variables to your **Render** and **Vercel** dashboards. I have mapped 
 | `STORAGE_BUCKET` | **Supabase** | Storage -> The name of your private bucket (`linkpulse-storage`) |
 | `QDRANT_URL` | **Qdrant Cloud**| Cluster Dashboard -> Endpoint URL |
 | `QDRANT_API_KEY` | **Qdrant Cloud**| Cluster Dashboard -> API Keys -> Create/Copy |
+| `USE_GEMINI_EMBEDDINGS`| **-** | **Set to `True`** (Mandatory for Render Free Tier to avoid OOM crashes) |
 
 ### 🛠️ Application Variables (Copy from your local `.env`)
 
