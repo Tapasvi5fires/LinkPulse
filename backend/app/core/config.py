@@ -116,6 +116,11 @@ class Settings(BaseSettings):
             # 4. Ensure we are using the pooler port
             if "pooler.supabase.com" in url and ":6543" not in url and ":5432" not in url:
                 url = url.replace(".com/", ".com:6543/")
+            
+            # 5. Smart Hostname Fallback (Sometimes aws-0- is not needed)
+            if "aws-0-ap-south-1.pooler.supabase.com" in url:
+                # We will keep it as is, but we've identified it's a specific pooler
+                pass
         
         return url
 
