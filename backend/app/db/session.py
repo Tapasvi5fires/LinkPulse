@@ -11,9 +11,10 @@ engine = create_async_engine(
     echo=False,
     pool_pre_ping=True,
     pool_size=2,          # Small base pool for reuse
-    max_overflow=10,      # Allow bursts
-    pool_recycle=1800,    # Recycle every 30 mins
-    pool_timeout=60,      # Wait up to 60s for a connection
+    max_overflow=15,      # Allow bursts
+    pool_recycle=60,      # Recycle VERY fast (Supabase pooler closes idle connections quickly)
+    pool_timeout=30,      # Wait up to 30s for a connection
+    pool_use_lifo=True,   # Always use the freshest connection first
     connect_args={
         "command_timeout": 60,
         "server_settings": {"search_path": "public"}
