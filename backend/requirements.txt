@@ -29,6 +29,8 @@ beautifulsoup4
 trafilatura
 lxml_html_clean
 pymupdf
+python-docx
+python-pptx
 pytesseract
 youtube-transcript-api
 pygithub
