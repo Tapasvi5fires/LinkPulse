@@ -66,9 +66,9 @@ try:
         
         # Build candidates using both Hostname and Resolved IP
         candidates = []
-        pooler_host = "aws-0-ap-south-1.pooler.supabase.com"
+        pooler_host = "aws-1-ap-south-1.pooler.supabase.com"
         
-        # Spec 1: Official Session Mode + Identity Options (The missing piece?)
+        # Spec 1: Official Session Mode + Identity Options
         options = "?ssl=require&options=-c%20search_path=public&application_name=linkpulse"
         candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{pooler_host}:5432/postgres{options}")
         
