@@ -109,6 +109,27 @@ class Settings(BaseSettings):
                 if "." in u_part:
                     project_ref = u_part.split(".")[1]
             
+            # 2. Reconstruct URL to ensure it's clean
+            try:
+                from urllib.parse import quote_plus
+                # If we have a project ref, ensure it's in the username correctly
+                if project_ref and "@" in url:
+                    prefix = url.split("://")[0]
+                    rest = url.split("://")[1]
+                    user_pass = rest.split("@")[0]
+                    host_port_db = rest.split("@")[1]
+                    
+                    if ":" in user_pass:
+                        user = user_pass.split(":")[0]
+                        password = user_pass.split(":")[1]
+                        # Ensure user is postgres.ref
+                        if "." not in user:
+                            user = f"postgres.{project_ref}"
+                        # Clean the URL
+                        url = f"{prefix}://{user}:{password}@{host_port_db}"
+            except:
+                pass
+            
             # 3. Force SSL: asyncpg wants 'ssl', not 'sslmode'
             url = url.replace("sslmode=", "ssl=")
             if "ssl=" not in url:
