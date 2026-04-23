@@ -113,6 +113,12 @@ try:
         return {"url": url}
 except Exception as e:
     import traceback
+    error_detail = traceback.format_exc()
+    print("\n" + "="*50)
     print("CRITICAL STARTUP ERROR:")
-    traceback.print_exc()
-    sys.exit(1)
+    print(f"Error Type: {type(e).__name__}")
+    print(f"Error Message: {str(e)}")
+    print("\nFULL TRACEBACK:")
+    print(error_detail)
+    print("="*50 + "\n")
+    raise e
