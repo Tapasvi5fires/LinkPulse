@@ -173,7 +173,7 @@ class VectorDB:
                     with_payload=True
                 )
         except Exception as e:
-            logger.error(f"Critical Qdrant search failure: {e}")
+            logger.error(f"Critical Qdrant search failure (might be missing index): {e}")
             return []
         
         results = []
@@ -189,39 +189,43 @@ class VectorDB:
         """
         Remove entries with matching source_url AND user_id.
         """
-        delete_filter = models.Filter(
-            must=[
-                models.FieldCondition(key="user_id", match=models.MatchValue(value=user_id)),
-                models.Filter(
-                    should=[
-                        models.FieldCondition(key="source_url", match=models.MatchValue(value=source_url)),
-                        models.FieldCondition(key="url", match=models.MatchValue(value=source_url)),
-                        # Fallback match for the old doc_... titles
-                        models.FieldCondition(key="title", match=models.MatchValue(value=source_url[4:] if source_url.startswith("doc_") else source_url))
-                    ]
-                )
-            ]
-        )
-        
-        # To get count, we scroll first
-        points, _ = self.client.scroll(
-            collection_name=self.collection_name,
-            scroll_filter=delete_filter,
-            limit=10000,
-            with_payload=False
-        )
-        
-        if not points:
-            return 0
+        try:
+            delete_filter = models.Filter(
+                must=[
+                    models.FieldCondition(key="user_id", match=models.MatchValue(value=user_id)),
+                    models.Filter(
+                        should=[
+                            models.FieldCondition(key="source_url", match=models.MatchValue(value=source_url)),
+                            models.FieldCondition(key="url", match=models.MatchValue(value=source_url)),
+                            # Fallback match for the old doc_... titles
+                            models.FieldCondition(key="title", match=models.MatchValue(value=source_url[4:] if source_url.startswith("doc_") else source_url))
+                        ]
+                    )
+                ]
+            )
             
-        point_ids = [p.id for p in points]
-        self.client.delete(
-            collection_name=self.collection_name,
-            points_selector=models.PointIdsList(points=point_ids)
-        )
-        
-        logger.info(f"Removed {len(point_ids)} vectors for source {source_url}")
-        return len(point_ids)
+            # To get count, we scroll first
+            points, _ = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=delete_filter,
+                limit=10000,
+                with_payload=False
+            )
+            
+            if not points:
+                return 0
+                
+            point_ids = [p.id for p in points]
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=models.PointIdsList(points=point_ids)
+            )
+            
+            logger.info(f"Removed {len(point_ids)} vectors for source {source_url}")
+            return len(point_ids)
+        except Exception as e:
+            logger.error(f"Failed to delete source from Qdrant: {e}")
+            return 0
 
     # --- Compatibility Methods ---
     
@@ -241,16 +245,20 @@ class VectorDB:
         """
         Fetch all metadata chunks for a user.
         """
-        points, _ = self.client.scroll(
-            collection_name=self.collection_name,
-            scroll_filter=models.Filter(
-                must=[models.FieldCondition(key="user_id", match=models.MatchValue(value=user_id))]
-            ),
-            limit=10000,
-            with_payload=True
-        )
-        
-        return {p.id: p.payload for p in points}
+        try:
+            points, _ = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[models.FieldCondition(key="user_id", match=models.MatchValue(value=user_id))]
+                ),
+                limit=10000,
+                with_payload=True
+            )
+            return {p.id: p.payload for p in points}
+        except Exception as e:
+            # If index is missing or other transient error, return empty but don't crash
+            logger.warning(f"Could not fetch user metadata (might be indexing): {e}")
+            return {}
 
     def get_all_metadata(self) -> Dict[str, Dict[str, Any]]:
         """
