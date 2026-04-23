@@ -48,18 +48,26 @@ try:
             
         # Define candidate URLs to brute-force the connection
         base_url = settings.ASYNC_DATABASE_URL
-        project_ref = settings.ASYNC_DATABASE_URL.split("postgres.")[1].split(":")[0] if "postgres." in settings.ASYNC_DATABASE_URL else ""
+        project_ref = "knytuuxlmmqyfqhtrmtt" # Hardcoded for safety during this debug phase
         
-        candidates = [base_url] # Start with the one provided
+        candidates = [base_url]
         
-        if project_ref:
+        # Add regional fallbacks (If ap-south-1 fails, try us-east-1)
+        if "ap-south-1" in base_url:
+            candidates.append(base_url.replace("ap-south-1", "us-east-1"))
+        elif "us-east-1" in base_url:
+            candidates.append(base_url.replace("us-east-1", "ap-south-1"))
+            
+        # Add username fallbacks for each region
+        regional_candidates = candidates.copy()
+        for c in regional_candidates:
             # 1. Try with just the project_ref as username
-            candidates.append(base_url.replace(f"postgres.{project_ref}", project_ref))
+            candidates.append(c.replace(f"postgres.{project_ref}", project_ref))
             # 2. Try with project_ref as database name
-            candidates.append(base_url.replace("/postgres", f"/{project_ref}").replace(f"postgres.{project_ref}", "postgres"))
+            candidates.append(c.replace("/postgres", f"/{project_ref}").replace(f"postgres.{project_ref}", "postgres"))
         
-        max_retries = 9
-        retry_delay = 5
+        max_retries = 12 # More retries for more candidates
+        retry_delay = 3
         
         for attempt in range(max_retries):
             # Rotate through candidates
