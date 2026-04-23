@@ -73,8 +73,13 @@ class Settings(BaseSettings):
     @property
     def ASYNC_DATABASE_URL(self) -> str:
         if not self.DATABASE_URL:
-            return "sqlite+aiosqlite:///./missing_db_url.db" # Fallback to prevent crash
-        return self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+            return "sqlite+aiosqlite:///./missing_db_url.db"
+        url = self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+        # Supabase requires SSL for external connections
+        if "supabase" in url and "ssl=" not in url:
+            separator = "&" if "?" in url else "?"
+            url = f"{url}{separator}ssl=require"
+        return url
 
     class Config:
         case_sensitive = True
