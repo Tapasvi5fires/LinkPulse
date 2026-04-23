@@ -67,22 +67,38 @@ This guide provides step-by-step instructions for deploying LinkPulse to a produ
 
 ## 🔑 Step 4: Environment Variables Checklist
 
-Add these to your **Render** and **Vercel** dashboards:
+## 🔑 Step 4: Environment Variables Mapping
+
+Add these variables to your **Render** and **Vercel** dashboards. I have mapped exactly where to get each one:
+
+### 📡 Cloud Provider Variables (New for Production)
+
+| Variable | Source Provider | Where to find it? |
+| :--- | :--- | :--- |
+| `DATABASE_URL` | **Supabase** | Settings -> Database -> Connection String (Use `postgresql+asyncpg://`) |
+| `REDIS_URL` | **Upstash** | Dashboard -> Redis Details -> Connection String (Must start with `rediss://`) |
+| `CELERY_BROKER_URL` | **Upstash** | Same as `REDIS_URL` |
+| `CELERY_RESULT_BACKEND`| **Upstash** | Same as `REDIS_URL` |
+| `SUPABASE_URL` | **Supabase** | Settings -> API -> Project URL |
+| `SUPABASE_KEY` | **Supabase** | Settings -> API -> `service_role` secret key |
+| `STORAGE_BUCKET` | **Supabase** | Storage -> The name of your private bucket (`linkpulse-storage`) |
+| `QDRANT_URL` | **Qdrant Cloud**| Cluster Dashboard -> Endpoint URL |
+| `QDRANT_API_KEY` | **Qdrant Cloud**| Cluster Dashboard -> API Keys -> Create/Copy |
+
+### 🛠️ Application Variables (Copy from your local `.env`)
 
 | Variable | Source | Note |
 | :--- | :--- | :--- |
-| `DATABASE_URL` | Supabase | Use `postgresql+asyncpg://...` |
-| `REDIS_URL` | Upstash | Must start with `rediss://` |
-| `CELERY_BROKER_URL` | Upstash | Same as `REDIS_URL` |
-| `CELERY_RESULT_BACKEND`| Upstash | Same as `REDIS_URL` |
-| `STORAGE_BACKEND` | - | Set to `supabase` |
-| `SUPABASE_URL` | Supabase | Your project URL |
-| `SUPABASE_KEY` | Supabase | Use the **service_role** key |
-| `STORAGE_BUCKET` | Supabase | `linkpulse-storage` |
-| `QDRANT_URL` | Qdrant | Your cluster URL |
-| `QDRANT_API_KEY` | Qdrant | Your API Key |
-| `GEMINI_API_KEY` | Google | For AI features |
-| `SECRET_KEY` | - | Generate a random string |
+| `STORAGE_BACKEND` | Local `.env` | Set to `supabase` for cloud production. |
+| `GEMINI_API_KEY` | Local `.env` | Your Google AI Studio key. |
+| `GROQ_API_KEY` | Local `.env` | Your Groq Cloud key. |
+| `TAVILY_API_KEY` | Local `.env` | Your Tavily Search key. |
+| `GOOGLE_CLIENT_ID` | Google Console | From your OAuth settings. |
+| `GOOGLE_CLIENT_SECRET`| Google Console | From your OAuth settings. |
+| `GITHUB_CLIENT_ID` | GitHub Settings | From your OAuth settings. |
+| `GITHUB_CLIENT_SECRET`| GitHub Settings | From your OAuth settings. |
+| `SECRET_KEY` | Local `.env` | Use a fresh random 32-char string for production. |
+| `NEXT_PUBLIC_API_URL` | **Render** | Your Backend URL (e.g., `https://linkpulse.onrender.com`) |
 
 ---
 
