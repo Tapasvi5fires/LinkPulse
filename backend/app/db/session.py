@@ -9,19 +9,19 @@ from app.models.base import Base
 engine = create_async_engine(
     settings.ASYNC_DATABASE_URL,
     echo=False,
-    pool_pre_ping=True,
     pool_size=2,          # Small base pool for reuse
     max_overflow=15,      # Allow bursts
-    pool_recycle=60,      # Recycle VERY fast (Supabase pooler closes idle connections quickly)
+    pool_recycle=60,      # Recycle VERY fast
     pool_timeout=30,      # Wait up to 30s for a connection
     pool_use_lifo=True,   # Always use the freshest connection first
     connect_args={
         "command_timeout": 60,
         "server_settings": {"search_path": "public"},
-        "prepared_statement_cache_size": 0,  # REQUIRED for Supabase/PgBouncer Transaction Mode
-        "statement_cache_size": 0            # Disable prepared statements entirely
+        "prepared_statement_cache_size": 0,  # CRITICAL: Disable asyncpg's internal cache
+        "statement_cache_size": 0            # CRITICAL: Disable SQLAlchemy's statement cache
     }
 )
+# Note: pool_pre_ping is disabled because it can cause 'prepared statement' errors in Transaction Mode
 
 # Create session factory
 SessionLocal = sessionmaker(
