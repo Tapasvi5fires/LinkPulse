@@ -45,26 +45,56 @@ class VectorDB:
             collections = self.client.get_collections().collections
             collection_names = [c.name for c in collections]
             
+            # Default dimension: 768 for Gemini text-embedding-004, 384 for all-MiniLM-L6-v2
+            # We prefer 768 for Cloud/Production
+            target_size = 768 if settings.GEMINI_API_KEY else 384
+            
             if self.collection_name not in collection_names:
-                # Default dimension to 384 (all-MiniLM-L6-v2)
-                logger.info(f"Creating collection: {self.collection_name}")
+                logger.info(f"Creating collection: {self.collection_name} (Size: {target_size})")
                 self.client.create_collection(
                     collection_name=self.collection_name,
                     vectors_config=models.VectorParams(
-                        size=384,
+                        size=target_size,
                         distance=models.Distance.COSINE
                     )
                 )
+            else:
+                # Check for dimension mismatch
+                info = self.client.get_collection(self.collection_name)
+                current_size = info.config.params.vectors.size
+                if current_size != target_size:
+                    logger.warning(f"Dimension mismatch! Collection: {current_size}, App: {target_size}. Recreating...")
+                    self.client.delete_collection(self.collection_name)
+                    self.client.create_collection(
+                        collection_name=self.collection_name,
+                        vectors_config=models.VectorParams(
+                            size=target_size,
+                            distance=models.Distance.COSINE
+                        )
+                    )
             
-            # Ensure payload index for user_id (Required by Qdrant Cloud for filtering)
-            self.client.create_payload_index(
-                collection_name=self.collection_name,
-                field_name="user_id",
-                field_schema=models.PayloadSchemaType.INTEGER
-            )
-            logger.info(f"✅ Qdrant payload index for 'user_id' ensured.")
+            # Ensure payload indexes (Required by Qdrant Cloud for filtering)
+            index_fields = [
+                ("user_id", models.PayloadSchemaType.INTEGER),
+                ("source_url", models.PayloadSchemaType.KEYWORD),
+                ("url", models.PayloadSchemaType.KEYWORD),
+                ("title", models.PayloadSchemaType.KEYWORD)
+            ]
+            
+            for field_name, schema_type in index_fields:
+                try:
+                    self.client.create_payload_index(
+                        collection_name=self.collection_name,
+                        field_name=field_name,
+                        field_schema=schema_type
+                    )
+                    logger.info(f"✅ Qdrant payload index for '{field_name}' ensured.")
+                except Exception as index_error:
+                    # Ignore if index already exists or other non-critical issues
+                    logger.debug(f"Index check for {field_name}: {index_error}")
+                    
         except Exception as e:
-            logger.error(f"Error ensuring Qdrant collection or index: {e}")
+            logger.error(f"Error ensuring Qdrant collection or indexes: {e}")
 
     def add(self, embeddings: List[List[float]], metadatas: List[Dict[str, Any]]):
         if not embeddings:

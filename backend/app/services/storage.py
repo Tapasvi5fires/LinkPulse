@@ -68,11 +68,15 @@ class StorageService:
                             )
                     return destination_name
                 except Exception as e:
-                    logger.error(f"S3 upload failed: {e}")
-                    raise e
+                    logger.warning(f"S3 upload failed, trying standard Supabase client: {e}")
+                    # Don't raise yet, try the standard client below
             
-            # Use Standard Client
+            # Use Standard Client (as fallback or primary)
             try:
+                if not self.supabase_client:
+                    from supabase import create_client
+                    self.supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+                
                 with open(file_path, "rb") as f:
                     self.supabase_client.storage.from_(settings.STORAGE_BUCKET).upload(
                         path=destination_name,
@@ -81,7 +85,7 @@ class StorageService:
                     )
                 return destination_name
             except Exception as e:
-                logger.error(f"Supabase standard upload failed: {e}")
+                logger.error(f"Storage upload failed (S3 and Standard): {e}")
                 raise e
         else:
             # Local storage
@@ -103,9 +107,13 @@ class StorageService:
                         )
                         return url
                 except Exception as e:
-                    logger.error(f"S3 signed URL failed: {e}")
+                    logger.warning(f"S3 signed URL failed, trying standard Supabase client: {e}")
             
             try:
+                if not self.supabase_client:
+                    from supabase import create_client
+                    self.supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+                    
                 res = self.supabase_client.storage.from_(settings.STORAGE_BUCKET).create_signed_url(
                     path=identifier,
                     expires_in=expires_in
@@ -127,9 +135,12 @@ class StorageService:
                         await s3.delete_object(Bucket=settings.STORAGE_BUCKET, Key=identifier)
                     return
                 except Exception as e:
-                    logger.error(f"S3 delete failed: {e}")
+                    logger.warning(f"S3 delete failed, trying standard Supabase client: {e}")
             
             try:
+                if not self.supabase_client:
+                    from supabase import create_client
+                    self.supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
                 self.supabase_client.storage.from_(settings.STORAGE_BUCKET).remove([identifier])
             except Exception as e:
                 logger.warning(f"Failed to delete {identifier} from Supabase: {e}")
