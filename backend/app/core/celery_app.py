@@ -20,6 +20,15 @@ celery_app.conf.update(
     visibility_timeout=3600,
 )
 
+# Fix for Upstash/SSL Redis
+if "rediss://" in settings.CELERY_BROKER_URL:
+    celery_app.conf.broker_use_ssl = {
+        'ssl_cert_reqs': 0 # ssl.CERT_NONE
+    }
+    celery_app.conf.redis_backend_use_ssl = {
+        'ssl_cert_reqs': 0 # ssl.CERT_NONE
+    }
+
 celery_app.conf.task_routes = {
     "app.workers.*": "main-queue",
 }
