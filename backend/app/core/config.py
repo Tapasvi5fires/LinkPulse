@@ -119,10 +119,13 @@ class Settings(BaseSettings):
             if "pooler.supabase.com" in url and ":6543" not in url and ":5432" not in url:
                 url = url.replace(".com/", ".com:6543/")
             
-            # 5. Smart Hostname Fallback (Sometimes aws-0- is not needed)
-            if "aws-0-ap-south-1.pooler.supabase.com" in url:
-                # We will keep it as is, but we've identified it's a specific pooler
-                pass
+            # 5. Regional Auto-Detector (The "Safety Net")
+            # If the user specified ap-south-1 but the project is in us-east-1 (or vice versa),
+            # we can't fix it here easily without a restart, but we can log a better hint.
+            if "ap-south-1" in url:
+                print("HINT: If this fails, your project might be in us-east-1. Check Supabase Settings -> Database.")
+            elif "us-east-1" in url:
+                print("HINT: If this fails, your project might be in ap-south-1. Check Supabase Settings -> Database.")
         
         return url
 
