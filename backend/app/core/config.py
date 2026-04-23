@@ -69,7 +69,8 @@ class Settings(BaseSettings):
         "http://localhost:8090",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:8090",
-        "https://linkpulse-frontend.vercel.app" # Default placeholder
+        "https://linkpulse-eta.vercel.app",
+        "https://linkpulse-frontend.vercel.app"
     ]
 
     @property
