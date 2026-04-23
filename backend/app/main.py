@@ -41,22 +41,34 @@ try:
         project_ref = "knytuuxlmmqyfqhtrmtt"
         password = "LinkPulse2024"
         regions = ["ap-south-1", "us-east-1"]
-        ports = ["6543", "5432"]
+        ports = ["6543"] # Keep to pooler port for IP test
         
+        # 1. Try to resolve the actual IP of the pooler to bypass DNS issues
+        resolved_ips = []
+        try:
+            for reg in regions:
+                host = f"aws-0-{reg}.pooler.supabase.com"
+                info = socket.getaddrinfo(host, 6543, socket.AF_INET)
+                for res in info:
+                    resolved_ips.append((res[4][0], reg))
+            logger.info(f"Resolved Supabase Poolers to IPs: {resolved_ips}")
+        except Exception as e:
+            logger.warning(f"DNS Resolution failed: {e}")
+
         # Brute-force construction
         candidates = []
+        # First try via Resolved IPs (Most robust for Render)
+        for ip, reg in resolved_ips:
+            # Pattern A: Standard
+            candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{ip}:6543/postgres?ssl=require")
+            # Pattern B: ID only
+            candidates.append(f"postgresql+asyncpg://{project_ref}:{password}@{ip}:6543/postgres?ssl=require")
+
+        # Then try via Hostnames (Fallback)
         for reg in regions:
-            for port in ports:
-                host = f"aws-0-{reg}.pooler.supabase.com"
-                # Pattern A: postgres.ID
-                candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{host}:{port}/postgres?ssl=require")
-                # Pattern B: just ID
-                candidates.append(f"postgresql+asyncpg://{project_ref}:{password}@{host}:{port}/postgres?ssl=require")
-                # Pattern C: ID as database name
-                candidates.append(f"postgresql+asyncpg://postgres:{password}@{host}:{port}/{project_ref}?ssl=require")
-                # Pattern D: Direct Hostname
-                direct_host = f"db.{project_ref}.supabase.co"
-                candidates.append(f"postgresql+asyncpg://postgres:{password}@{direct_host}:5432/postgres?ssl=require")
+            host = f"aws-0-{reg}.pooler.supabase.com"
+            candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{host}:6543/postgres?ssl=require")
+            candidates.append(f"postgresql+asyncpg://{project_ref}:{password}@{host}:6543/postgres?ssl=require")
 
         max_retries = len(candidates) * 2
         retry_delay = 2
