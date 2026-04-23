@@ -27,6 +27,7 @@ rank_bm25
 playwright
 beautifulsoup4
 trafilatura
+lxml_html_clean
 pymupdf
 pytesseract
 youtube-transcript-api
