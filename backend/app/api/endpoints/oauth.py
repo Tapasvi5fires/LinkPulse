@@ -124,10 +124,16 @@ async def github_callback(code: str, db: AsyncSession = Depends(deps.get_db)):
         # 3. Get email (might be private)
         email_res = await client.get("https://api.github.com/user/emails", headers={"Authorization": f"Bearer {access_token}"})
         emails = email_res.json()
-        primary_email = next((e["email"] for e in emails if e["primary"]), emails[0]["email"] if emails else None)
+        
+        primary_email = None
+        if isinstance(emails, list) and len(emails) > 0:
+            primary_email = next((e["email"] for e in emails if e.get("primary")), emails[0].get("email"))
+        else:
+            # Fallback to public email if available in user_info
+            primary_email = user_info.get("email")
 
     if not primary_email:
-        raise HTTPException(status_code=400, detail="GitHub account has no email")
+        raise HTTPException(status_code=400, detail="GitHub account has no email or access denied")
         
     # 4. Handle user in DB
     user = await crud_user.get_by_github_id(db, github_id=github_id)

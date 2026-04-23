@@ -43,11 +43,9 @@ class StorageService:
                 logger.error(f"Failed to initialize Supabase client: {e}")
                 self.backend = "local" # Final fallback
 
-    async def _get_s3_client(self):
-        """Internal helper for async S3 client."""
-        import aioboto3
-        session = aioboto3.Session()
-        return session.client(
+    def _get_s3_client(self):
+        """Internal helper for async S3 client context manager."""
+        return self.s3_session.client(
             's3',
             region_name=settings.AWS_S3_REGION,
             endpoint_url=settings.AWS_S3_ENDPOINT,

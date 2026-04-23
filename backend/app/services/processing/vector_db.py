@@ -47,7 +47,6 @@ class VectorDB:
             
             if self.collection_name not in collection_names:
                 # Default dimension to 384 (all-MiniLM-L6-v2)
-                # If using Gemini, it should ideally be 768, but we match the current working setup.
                 logger.info(f"Creating collection: {self.collection_name}")
                 self.client.create_collection(
                     collection_name=self.collection_name,
@@ -56,8 +55,16 @@ class VectorDB:
                         distance=models.Distance.COSINE
                     )
                 )
+            
+            # Ensure payload index for user_id (Required by Qdrant Cloud for filtering)
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="user_id",
+                field_schema=models.PayloadSchemaType.INTEGER
+            )
+            logger.info(f"✅ Qdrant payload index for 'user_id' ensured.")
         except Exception as e:
-            logger.error(f"Error ensuring Qdrant collection: {e}")
+            logger.error(f"Error ensuring Qdrant collection or index: {e}")
 
     def add(self, embeddings: List[List[float]], metadatas: List[Dict[str, Any]]):
         if not embeddings:
