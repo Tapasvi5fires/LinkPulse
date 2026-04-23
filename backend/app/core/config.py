@@ -97,12 +97,14 @@ class Settings(BaseSettings):
         # Supabase specific fixes for Cloud (Render)
         if "supabase" in url:
             # Force SSL
-            if "ssl=" not in url:
+            if "ssl=" not in url and "sslmode=" not in url:
                 separator = "&" if "?" in url else "?"
-                url = f"{url}{separator}ssl=require"
+                url += f"{separator}sslmode=require"
             
-            # If user is using direct port 5432, warn or handle? 
-            # (Better to just let the user set 6543 in Render)
+            # Ensure we are using the pooler port if it's the pooler host
+            if "pooler.supabase.com" in url and ":6543" not in url and ":5432" not in url:
+                url = url.replace(".com/", ".com:6543/")
+        
         return url
 
     class Config:
