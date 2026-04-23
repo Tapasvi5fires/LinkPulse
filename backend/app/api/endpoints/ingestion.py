@@ -2,6 +2,7 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form
 from pydantic import BaseModel
 from app.api import deps
+from app.core.config import settings
 from app.services.ingestion import ingestion_service
 from app.services.processing.pipeline import processing_pipeline
 from app.models.user import User

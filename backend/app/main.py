@@ -5,7 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
 from app.core.config import settings
 from app.core.logging_config import setup_logging
-from app.db.session import engine, Base
+from app.db.base import Base
+import asyncio
 
 # Setup logging
 setup_logging()
@@ -45,12 +46,30 @@ try:
         except Exception as e:
             print(f"DIAGNOSTIC: FAILED! Cannot reach host. Error: {e}")
             
-        max_retries = 5
+        # Define candidate URLs to brute-force the connection
+        base_url = settings.ASYNC_DATABASE_URL
+        project_ref = settings.ASYNC_DATABASE_URL.split("postgres.")[1].split(":")[0] if "postgres." in settings.ASYNC_DATABASE_URL else ""
+        
+        candidates = [base_url] # Start with the one provided
+        
+        if project_ref:
+            # 1. Try with just the project_ref as username
+            candidates.append(base_url.replace(f"postgres.{project_ref}", project_ref))
+            # 2. Try with project_ref as database name
+            candidates.append(base_url.replace("/postgres", f"/{project_ref}").replace(f"postgres.{project_ref}", "postgres"))
+        
+        max_retries = 9
         retry_delay = 5
         
         for attempt in range(max_retries):
+            # Rotate through candidates
+            current_url = candidates[attempt % len(candidates)]
             try:
-                async with engine.begin() as conn:
+                # We need to recreate the engine for each candidate if we are switching
+                from sqlalchemy.ext.asyncio import create_async_engine
+                temp_engine = create_async_engine(current_url, pool_pre_ping=True)
+                
+                async with temp_engine.begin() as conn:
                     # 1. Create tables if they don't exist
                     await conn.run_sync(Base.metadata.create_all)
                     
@@ -60,16 +79,15 @@ try:
                     await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id VARCHAR;"))
                     await conn.execute(text("ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL;"))
                     
-                    logger.info("Database initialized successfully")
+                    logger.info(f"Database initialized successfully using URL candidate {attempt % len(candidates) + 1}")
                     return # Success!
             except Exception as e:
-                logger.warning(f"Database connection attempt {attempt + 1} failed: {e}")
+                logger.warning(f"Database connection attempt {attempt + 1} failed with URL candidate {attempt % len(candidates) + 1}: {e}")
                 if attempt < max_retries - 1:
                     logger.info(f"Retrying in {retry_delay} seconds...")
                     await asyncio.sleep(retry_delay)
                 else:
                     logger.error("All database connection attempts failed.")
-                    # We don't crash here so the app can still respond to health checks
 
     @app.get("/")
     def root():
