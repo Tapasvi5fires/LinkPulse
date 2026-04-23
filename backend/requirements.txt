@@ -42,3 +42,4 @@ python-dotenv
 supabase
 storage3
 python-multipart
+aioboto3

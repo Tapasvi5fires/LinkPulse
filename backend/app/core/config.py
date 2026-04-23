@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     STORAGE_BUCKET: str = "linkpulse-storage"
     MAX_UPLOAD_SIZE_MB: int = 20
     
+    # S3 Compatibility (Required for Supabase S3)
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_S3_BUCKET: Optional[str] = "linkpulse-storage"
+    AWS_S3_REGION: str = "ap-south-1"
+    AWS_S3_ENDPOINT: Optional[str] = None
+    
     # Gemini Configuration
     GEMINI_API_KEY: Optional[str] = None
     
