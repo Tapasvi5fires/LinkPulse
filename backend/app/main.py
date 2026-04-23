@@ -81,10 +81,22 @@ try:
         for attempt in range(max_retries):
             # Rotate through candidates
             current_url = candidates[attempt % len(candidates)]
+            
+            # Mask password for logging
+            log_url = current_url
+            if ":" in current_url and "@" in current_url:
+                parts = current_url.split("@")
+                user_pass = parts[0].split("://")[1]
+                if ":" in user_pass:
+                    user = user_pass.split(":")[0]
+                    log_url = f"{current_url.split('://')[0]}://{user}:****@{parts[1]}"
+            
+            logger.info(f"Trying URL candidate {attempt % len(candidates) + 1}: {log_url}")
+            
             try:
                 # We need to recreate the engine for each candidate if we are switching
                 from sqlalchemy.ext.asyncio import create_async_engine
-                temp_engine = create_async_engine(current_url, pool_pre_ping=True)
+                temp_engine = create_async_engine(current_url, pool_pre_ping=True, connect_args={"command_timeout": 30})
                 
                 async with temp_engine.begin() as conn:
                     # 1. Create tables if they don't exist
@@ -99,9 +111,8 @@ try:
                     logger.info(f"Database initialized successfully using URL candidate {attempt % len(candidates) + 1}")
                     return # Success!
             except Exception as e:
-                logger.warning(f"Database connection attempt {attempt + 1} failed with URL candidate {attempt % len(candidates) + 1}: {e}")
+                logger.warning(f"Attempt {attempt + 1} FAILED: {e}")
                 if attempt < max_retries - 1:
-                    logger.info(f"Retrying in {retry_delay} seconds...")
                     await asyncio.sleep(retry_delay)
                 else:
                     logger.error("All database connection attempts failed.")
