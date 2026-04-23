@@ -3,7 +3,7 @@ from app.services.processing.embedding import embedding_service
 from app.services.processing.vector_db import vector_db
 from rank_bm25 import BM25Okapi
 import numpy as np
-from sentence_transformers import CrossEncoder
+# from sentence_transformers import CrossEncoder (Moved to lazy loading to save RAM)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -11,15 +11,23 @@ logger = logging.getLogger(__name__)
 class SearchService:
     def __init__(self):
         self.reranker = None
-        # BM25 requires all documents. In a real system, use Elasticsearch/Solr.
-        # Here we simulate with in-memory documents from VectorDB metadata if feasible,
-        # or just rely on Vector Search + Reranking for MVP if BM25 is too heavy.
+        self.reranker_available = True # Assume true until first fail
         self.bm25 = None
         self.corpus = []
 
     def _get_reranker(self):
+        if not self.reranker_available:
+            return None
+            
         if self.reranker is None:
-            self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+            try:
+                from sentence_transformers import CrossEncoder
+                logger.info("Loading CrossEncoder reranker... (Memory intensive)")
+                self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+            except ImportError:
+                logger.warning("sentence_transformers not installed. Skipping Reranking to save RAM.")
+                self.reranker_available = False
+                return None
         return self.reranker
 
     def update_bm25(self):
@@ -65,20 +73,24 @@ class SearchService:
 
         reranker = self._get_reranker()
         
-        # Prepare pairs for reranking: [query, doc_text]
-        pairs = []
-        for Res in vector_results:
-            doc_text = Res["metadata"].get("text", "")
-            pairs.append([query, doc_text])
+        if reranker:
+            # Prepare pairs for reranking: [query, doc_text]
+            pairs = []
+            for Res in vector_results:
+                doc_text = Res["metadata"].get("text", "")
+                pairs.append([query, doc_text])
+                
+            scores = reranker.predict(pairs)
             
-        scores = reranker.predict(pairs)
-        
-        # Attach scores and sort
-        for i, res in enumerate(vector_results):
-            res["rerank_score"] = float(scores[i])
-            
-        # Sort by rerank score
-        vector_results.sort(key=lambda x: x["rerank_score"], reverse=True)
+            # Attach scores and sort
+            for i, res in enumerate(vector_results):
+                res["rerank_score"] = float(scores[i])
+                
+            # Sort by rerank score
+            vector_results.sort(key=lambda x: x["rerank_score"], reverse=True)
+        else:
+            # Skip reranking and use vector distance
+            logger.info("Reranker not available, using raw vector results.")
         
         # Source diversity: when no filter, ensure results come from multiple sources
         if not filter_source and len(vector_results) > k:
