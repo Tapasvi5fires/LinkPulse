@@ -7,23 +7,34 @@ export const API_V1_URL = `${API_BASE_URL}/api/v1`;
  */
 export async function fetchWithRetry(url: string, options: RequestInit = {}, maxRetries = 3): Promise<Response> {
     let delay = 2000; // Start with 2s
+    const timeout = 15000; // 15 second timeout
     
     for (let i = 0; i < maxRetries; i++) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeout);
+        
         try {
-            const response = await fetch(url, options);
+            const response = await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
             
-            // If we get a 502, 503, or 504, it's likely the backend waking up
+            clearTimeout(id);
+            
             if ([502, 503, 504].includes(response.status)) {
                 throw new Error(`Backend waking up... (${response.status})`);
             }
             
             return response;
-        } catch (error) {
+        } catch (error: any) {
+            clearTimeout(id);
             if (i === maxRetries - 1) throw error;
             
-            console.warn(`Retry ${i + 1}/${maxRetries} for ${url} after ${delay}ms due to:`, error);
+            const isTimeout = error.name === 'AbortError';
+            console.warn(`Retry ${i + 1}/${maxRetries} for ${url} after ${delay}ms due to:`, isTimeout ? 'Timeout' : error.message);
+            
             await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2; // Exponential backoff
+            delay *= 2; 
         }
     }
     
