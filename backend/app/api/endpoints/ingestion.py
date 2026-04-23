@@ -30,9 +30,15 @@ class IngestResponse(BaseModel):
 
 async def process_ingestion_task(source_type: str, source_url: str, user_id: int, depth: int = 0, folder_name: str = None, task_id: str = None):
     try:
-        logger.info(f"Starting ingestion for {source_url} (user_id={user_id}, {source_type}, depth={depth})")
+        from app.services.processing.vector_db import vector_db
+        from app.services.storage import storage_service
+        
+        logger.info(f"Starting ingestion for {source_url}")
         if task_id:
             task_manager.add_task(task_id, user_id, source_url, source_type)
+        
+        # IDEMPOTENCY: Clear old vectors for this source before re-processing
+        vector_db.delete_source(source_url, user_id)
         
         # 1. Ingest
         documents = await ingestion_service.ingest_source(source_type, source_url, depth=depth)
@@ -85,47 +91,60 @@ async def upload_files(
 ) -> Any:
     """
     Upload and ingest multiple files (PDF, DOCX, PPTX, TXT, MD).
-    Optional folder_name groups all files under that folder name.
     """
-    STORAGE_DIR = "data/storage"
-    os.makedirs(STORAGE_DIR, exist_ok=True)
+    from app.services.storage import storage_service
+    
     task_ids = []
+    MAX_SIZE = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     
     for file in files:
-        filename = file.filename.lower()
-        source_type = "pdf" # default
+        # 1. Size Check
+        file.file.seek(0, 2)
+        size = file.file.tell()
+        file.file.seek(0)
         
-        if filename.endswith(".pdf"):
-            source_type = "pdf"
-        elif filename.endswith(".docx") or filename.endswith(".doc"):
-            source_type = "docx"
-        elif filename.endswith(".pptx") or filename.endswith(".ppt"):
-            source_type = "pptx"
-        elif filename.endswith(".txt") or filename.endswith(".md"):
-            source_type = "text"
-        else:
-             logger.warning(f"Skipping unsupported file: {file.filename}")
-             continue
+        if size > MAX_SIZE:
+            logger.warning(f"File too large: {file.filename} ({size} bytes)")
+            continue
+
+        filename = file.filename.lower()
+        source_type = "pdf"
+        if filename.endswith(".pdf"): source_type = "pdf"
+        elif filename.endswith((".docx", ".doc")): source_type = "docx"
+        elif filename.endswith((".pptx", ".ppt")): source_type = "pptx"
+        elif filename.endswith((".txt", ".md")): source_type = "text"
+        else: continue
              
-        # Save file PERMANENTLY to storage
+        # 2. Save to temp first, then upload via StorageService
         file_id = str(uuid.uuid4())
-        # Clean filename
         clean_filename = "".join(x for x in file.filename if x.isalnum() or x in "._- ")
-        file_path = os.path.join(STORAGE_DIR, f"{file_id}_{clean_filename}")
+        unique_name = f"{file_id}_{clean_filename}"
+        temp_path = os.path.join(TEMP_UPLOAD_DIR, unique_name)
         
         try:
-            with open(file_path, "wb") as buffer:
+            with open(temp_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
             
-            # Trigger background ingestion with folder_name and user_id
-            task_id = f"upload_{file_id}"
-            background_tasks.add_task(process_ingestion_task, source_type, file_path, current_user.id, 0, folder_name, task_id)
+            # 3. Upload to permanent storage (Local or Cloud)
+            storage_identifier = await storage_service.upload(temp_path, unique_name)
+            
+            # 4. Trigger background ingestion
+            task_id = f"upload_{file_id[:8]}"
+            background_tasks.add_task(
+                process_ingestion_task, 
+                source_type, 
+                storage_identifier, 
+                current_user.id, 
+                0, 
+                folder_name, 
+                task_id
+            )
             task_ids.append(file_id)
-            logger.info(f"Queued file for ingestion: {clean_filename} as {source_type} (user_id: {current_user.id}, folder: {folder_name})")
             
         except Exception as e:
-            logger.error(f"Error saving file {file.filename}: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to upload {file.filename}")
+            logger.error(f"Error processing upload {file.filename}: {e}")
+            if os.path.exists(temp_path): os.remove(temp_path)
+            raise HTTPException(status_code=500, detail=f"Failed to process {file.filename}")
             
     return {"message": f"Started ingestion for {len(task_ids)} files", "task_id": ",".join(task_ids)}
 
@@ -168,24 +187,26 @@ async def get_ingested_sources(
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Get list of all ingested sources, with group info for GitHub repos and folders.
+    Get list of all ingested sources with secure on-demand signed URLs.
     """
     from app.services.processing.vector_db import vector_db
+    from app.services.storage import storage_service
     
-    # Extract unique sources from metadata, filtered by user_id
-    logger.debug(f"Fetching sources for user: {current_user.id}")
     sources = {}
     user_metadata = vector_db.get_user_metadata(current_user.id)
+    
     for i, meta in user_metadata.items():
-            
         source_url = meta.get("source_url") or meta.get("url") or f"doc_{meta.get('title', 'unknown')}"
         
-        # Check if source_url is a local file in storage
+        # Check if source_url is a storage identifier (Local path or Cloud key)
         download_url = None
-        if source_url and "data/storage" in source_url.replace("\\", "/"):
-             # Convert to static URL
-             filename = os.path.basename(source_url)
-             download_url = f"/api/v1/files/{filename}"
+        # We assume if it's not a standard HTTP URL, it's a storage identifier
+        if source_url and not source_url.startswith(("http://", "https://")):
+             # Generate fresh signed URL on-demand
+             download_url = storage_service.get_signed_url(source_url)
+        elif source_url and ("data/storage" in source_url or "_" in source_url):
+             # Legacy or local storage path
+             download_url = storage_service.get_signed_url(source_url)
 
         if source_url not in sources:
             group = _extract_group(meta)

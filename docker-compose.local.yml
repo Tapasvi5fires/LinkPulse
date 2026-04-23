@@ -15,7 +15,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5440:5432"
+      - "5440:5432" # Exposed for local DB management tools
     networks:
       - linkpulse-network
 
@@ -23,7 +23,7 @@ services:
     image: redis:7-alpine
     restart: always
     ports:
-      - "6380:6379"
+      - "6380:6379" # Exposed for local debugging
     networks:
       - linkpulse-network
 
@@ -31,7 +31,7 @@ services:
     image: qdrant/qdrant:v1.17.0
     restart: always
     ports:
-      - "6334:6333"
+      - "6334:6333" # Exposed for Qdrant Dashboard/API
       - "6335:6334"
     volumes:
       - qdrant_data:/qdrant/storage
@@ -41,8 +41,9 @@ services:
   backend:
     build: 
       context: ./backend
-      dockerfile: Dockerfile.local # Using the CPU-optimized version
+      dockerfile: Dockerfile.local # Using CPU-optimized version
     restart: always
+    # Hot reload enabled for development
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
@@ -51,18 +52,20 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
+      QDRANT_URL: http://qdrant:6333
     ports:
-      - "${BACKEND_PORT:-8090}:8000"
+      - "8090:8000"
     depends_on:
       - db
       - redis
+      - qdrant
     networks:
       - linkpulse-network
 
   worker:
     build: 
       context: ./backend
-      dockerfile: Dockerfile.local # Using the CPU-optimized version
+      dockerfile: Dockerfile.local # Using CPU-optimized version
     restart: always
     command: celery -A app.core.celery_app worker --loglevel=info
     volumes:
@@ -72,6 +75,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
+      QDRANT_URL: http://qdrant:6333
     depends_on:
       - db
       - redis
@@ -84,13 +88,16 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     restart: always
+    # Hot reload enabled by using development server
+    command: npm run dev
     ports:
-      - "${FRONTEND_PORT:-3090}:3000"
+      - "3090:3000"
     volumes:
       - ./frontend:/app
-      - /app/node_modules
+      - /app/node_modules # Prevents host node_modules from overriding container's
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:${BACKEND_PORT:-8090}
+      # Use localhost because the browser accessing the frontend is on the host machine
+      NEXT_PUBLIC_API_URL: http://localhost:8090
     depends_on:
       - backend
     networks:

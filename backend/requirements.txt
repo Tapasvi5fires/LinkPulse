@@ -36,3 +36,6 @@ openai
 google-generativeai
 groq
 python-dotenv
+supabase
+storage3
+python-multipart

@@ -10,25 +10,23 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5440:5432"
+    # No ports exposed externally for security
     networks:
       - linkpulse-network
 
   redis:
     image: redis:7-alpine
     restart: always
-    ports:
-      - "6380:6379"
+    # No ports exposed externally for security
     networks:
       - linkpulse-network
 
   qdrant:
     image: qdrant/qdrant:v1.17.0
     restart: always
-    ports:
-      - "6334:6333"
-      - "6335:6334"
+    # Qdrant can remain exposed if external access is needed for debugging, 
+    # but for production on VPS, internal networking is safer.
+    # Instruction implies keeping Postgres and Redis hidden.
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
@@ -39,19 +37,21 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: always
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./backend:/app
+    # Production command without --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    # No code volume mounts in production
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
+      QDRANT_URL: http://qdrant:6333
     ports:
-      - "${BACKEND_PORT:-8090}:8000"
+      - "8090:8000"
     depends_on:
       - db
       - redis
+      - qdrant
     networks:
       - linkpulse-network
 
@@ -60,14 +60,15 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: always
+    # Independent Celery worker
     command: celery -A app.core.celery_app worker --loglevel=info
-    volumes:
-      - ./backend:/app
+    # No code volume mounts
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
+      QDRANT_URL: http://qdrant:6333
     depends_on:
       - db
       - redis
@@ -79,14 +80,15 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8000
     restart: always
+    # Next.js port mapped to VPS public port
     ports:
-      - "${FRONTEND_PORT:-3090}:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "3090:3000"
+    # No code volume mounts
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:${BACKEND_PORT:-8090}
+      NEXT_PUBLIC_API_URL: http://backend:8000
     depends_on:
       - backend
     networks:

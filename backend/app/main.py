@@ -10,9 +10,10 @@ warnings.filterwarnings("ignore", message="Api key is used with an insecure conn
 # Suppress Qdrant version mismatch warning
 warnings.filterwarnings("ignore", message=".*Qdrant client version.*is incompatible with server version.*")
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
+from app.api import deps
 from app.core.config import settings
 from app.core.database import engine
 from app.models.base import Base
@@ -81,27 +82,31 @@ STORAGE_DIR_RELATIVE = "data/storage"
 
 @app.get("/api/v1/files/{filename}")
 async def serve_file(filename: str):
-    """Serve uploaded files from storage directory."""
-    # Try relative path first (more common in dev)
-    file_path = os.path.join(STORAGE_DIR_RELATIVE, filename)
-    if not os.path.isfile(file_path):
-        # Try absolute path
-        file_path = os.path.join(STORAGE_DIR, filename)
+    """Serve local files from storage directory (used in local dev mode)."""
+    from app.services.storage import storage_service
+    
+    # In local mode, StorageService uses data/storage
+    file_path = os.path.join("data/storage", filename)
     
     if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+        # Check absolute path fallback
+        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "storage", filename)
+        
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
     
-    # Determine content type
     content_type, _ = mimetypes.guess_type(filename)
-    if not content_type:
-        content_type = "application/octet-stream"
-    
     return FileResponse(
         path=file_path,
-        media_type=content_type,
-        filename=filename,
-        headers={
-            "Content-Disposition": f"inline; filename=\"{filename}\"",
-            "Access-Control-Allow-Origin": "*",
-        }
+        media_type=content_type or "application/octet-stream",
+        filename=filename
     )
+
+@app.get("/api/v1/files/signed-url/{identifier:path}")
+async def get_file_signed_url(identifier: str, current_user: User = Depends(deps.get_current_active_user)):
+    """Generate a fresh signed URL for a file identifier."""
+    from app.services.storage import storage_service
+    url = storage_service.get_signed_url(identifier)
+    if not url:
+        raise HTTPException(status_code=404, detail="File not found or access denied")
+    return {"url": url}
