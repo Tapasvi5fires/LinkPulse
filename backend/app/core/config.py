@@ -74,11 +74,28 @@ class Settings(BaseSettings):
     def ASYNC_DATABASE_URL(self) -> str:
         if not self.DATABASE_URL:
             return "sqlite+aiosqlite:///./missing_db_url.db"
-        url = self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-        # Supabase requires SSL for external connections
-        if "supabase" in url and "ssl=" not in url:
-            separator = "&" if "?" in url else "?"
-            url = f"{url}{separator}ssl=require"
+        
+        # Clean the URL (remove trailing spaces/newlines from copy-paste)
+        raw_url = self.DATABASE_URL.strip()
+        url = raw_url.replace("postgresql://", "postgresql+asyncpg://")
+        
+        # DEBUG: Print parts of the URL to verify formatting (Safety: mask password)
+        try:
+            from urllib.parse import urlparse
+            p = urlparse(url.replace("postgresql+asyncpg://", "http://"))
+            print(f"DEBUG: DB Config -> Host: {p.hostname} | Port: {p.port} | User: {p.username} | DB: {p.path[1:]}")
+        except:
+            pass
+        
+        # Supabase specific fixes for Cloud (Render)
+        if "supabase" in url:
+            # Force SSL
+            if "ssl=" not in url:
+                separator = "&" if "?" in url else "?"
+                url = f"{url}{separator}ssl=require"
+            
+            # If user is using direct port 5432, warn or handle? 
+            # (Better to just let the user set 6543 in Render)
         return url
 
     class Config:
