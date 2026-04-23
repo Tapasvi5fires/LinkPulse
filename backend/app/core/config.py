@@ -96,8 +96,9 @@ class Settings(BaseSettings):
         
         # Supabase specific fixes for Cloud (Render)
         if "supabase" in url:
-            # Force SSL
-            if "ssl=" not in url and "sslmode=" not in url:
+            # Force SSL: asyncpg wants 'ssl', not 'sslmode'
+            url = url.replace("sslmode=", "ssl=")
+            if "ssl=" not in url:
                 separator = "&" if "?" in url else "?"
                 url += f"{separator}ssl=require"
             
