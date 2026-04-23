@@ -1,8 +1,8 @@
 fastapi
-uvicorn[standard]
+uvicorn[standard]==0.34.0
 sqlalchemy
-pydantic
-pydantic-settings
+pydantic==2.10.4
+pydantic-settings==2.7.0
 email-validator
 psycopg2-binary
 asyncpg
