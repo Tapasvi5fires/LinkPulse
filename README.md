@@ -1,5 +1,9 @@
 # ⚡ LinkPulse: Autonomous Web-to-Knowledge AI Platform
 
+[![Frontend](https://img.shields.io/badge/Live-Vercel-black?style=for-the-badge&logo=vercel)](https://linkpulse-eta.vercel.app/)
+[![Backend](https://img.shields.io/badge/API-Render-009688?style=for-the-badge&logo=render)](https://linkpulse-backend-klv2.onrender.com)
+[![Database](https://img.shields.io/badge/Database-Supabase-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com/)
+[![Redis](https://img.shields.io/badge/Cache-Upstash-EB3223?style=for-the-badge&logo=redis)](https://upstash.com/)
 [![Next.js](https://img.shields.io/badge/Frontend-Next.js%2014-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Qdrant](https://img.shields.io/badge/Vector%20DB-Qdrant-red?style=for-the-badge&logo=qdrant)](https://qdrant.tech/)
@@ -8,6 +12,29 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 LinkPulse is a production-grade, multi-agent AI engine designed to bridge the gap between fragmented web data and actionable private knowledge. It autonomously ingests, processes, and synthesizes information from diverse sources into a unified, ultra-fast RAG (Retrieval-Augmented Generation) pipeline.
+
+---
+
+## 🌐 Live Deployment Status
+
+| Service | Status | Live URL | Provider |
+| :--- | :--- | :--- | :--- |
+| **Frontend** | 🟢 Live | [linkpulse-eta.vercel.app](https://linkpulse-eta.vercel.app/) | **Vercel** |
+| **Backend API** | 🟢 Live | [linkpulse-backend-klv2.onrender.com](https://linkpulse-backend-klv2.onrender.com) | **Render** |
+| **Database** | 🟢 Live | `aws-1-ap-south-1` | **Supabase** |
+| **Vector DB** | 🟢 Live | `linkpulse_vectors` | **Qdrant** |
+
+---
+
+## 🏗️ Cloud Infrastructure (Production Stack)
+
+To ensure high availability and scalability, LinkPulse is distributed across industry-leading cloud providers:
+
+- **Frontend Hosting**: Deployed on **Vercel** for lightning-fast Edge delivery and global CDN support.
+- **Backend Orchestration**: Hosted on **Render** (FastAPI + Celery Worker) using containerized environments.
+- **Relational Storage**: **Supabase (PostgreSQL 16)** provides a robust, multi-tenant database backbone.
+- **Serverless Redis**: **Upstash** handles our high-speed message brokerage for asynchronous background tasks.
+- **S3 Object Storage**: **Supabase Storage (S3-Compatible)** stores and serves ingested documents and media.
 
 ---
 
