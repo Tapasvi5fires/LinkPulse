@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     POSTGRES_USER: Optional[str] = None
     POSTGRES_PASSWORD: Optional[str] = None
     POSTGRES_DB: Optional[str] = None
-    DATABASE_URL: str
+    DATABASE_URL: Optional[str] = None
     
     REDIS_URL: str = "redis://localhost:6379/0"
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
@@ -72,6 +72,8 @@ class Settings(BaseSettings):
 
     @property
     def ASYNC_DATABASE_URL(self) -> str:
+        if not self.DATABASE_URL:
+            return "sqlite+aiosqlite:///./missing_db_url.db" # Fallback to prevent crash
         return self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
     class Config:
