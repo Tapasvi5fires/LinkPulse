@@ -107,18 +107,11 @@ class Settings(BaseSettings):
                 # Try to find the ref in the hostname
                 pass # Usually it's in the username
             
-            # 2. Force SSL: asyncpg wants 'ssl', not 'sslmode'
+            # 3. Force SSL: asyncpg wants 'ssl', not 'sslmode'
             url = url.replace("sslmode=", "ssl=")
             if "ssl=" not in url:
                 separator = "&" if "?" in url else "?"
                 url += f"{separator}ssl=require"
-            
-            # 3. Universal Project ID Injection (The "Secret Sauce")
-            # Some poolers want it in the username, some in the options parameter
-            if project_ref:
-                if "options=project" not in url:
-                    separator = "&" if "?" in url else "?"
-                    url += f"{separator}options=project%3D{project_ref}"
             
             # 4. Ensure we are using the pooler port
             if "pooler.supabase.com" in url and ":6543" not in url and ":5432" not in url:
