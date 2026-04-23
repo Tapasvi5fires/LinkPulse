@@ -57,14 +57,17 @@ try:
 
         # Brute-force construction
         candidates = []
-        # First try via Resolved IPs (Most robust for Render)
+        # 1. IPv4 Proxy (The "Secret Portal" for Render)
+        ipv4_host = f"ipv4.db.{project_ref}.supabase.co"
+        candidates.append(f"postgresql+asyncpg://postgres:{password}@{ipv4_host}:5432/postgres?ssl=require")
+        candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{ipv4_host}:5432/postgres?ssl=require")
+
+        # 2. Resolved IPs (Existing logic)
         for ip, reg in resolved_ips:
-            # Pattern A: Standard
             candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{ip}:6543/postgres?ssl=require")
-            # Pattern B: ID only
             candidates.append(f"postgresql+asyncpg://{project_ref}:{password}@{ip}:6543/postgres?ssl=require")
 
-        # Then try via Hostnames (Fallback)
+        # 3. Hostnames (Fallback)
         for reg in regions:
             host = f"aws-0-{reg}.pooler.supabase.com"
             candidates.append(f"postgresql+asyncpg://postgres.{project_ref}:{password}@{host}:6543/postgres?ssl=require")
