@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Loader2, Eye, EyeOff, Mail, Lock, User, ArrowRight, Zap, CheckCircle2, Github, Globe, ShieldCheck, BookOpen, Fingerprint } from 'lucide-react';
 
-export default function RegisterPage() {
+function RegisterContent() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
@@ -309,5 +309,17 @@ export default function RegisterPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function RegisterPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+                <Loader2 className="animate-spin text-indigo-500" size={40} />
+            </div>
+        }>
+            <RegisterContent />
+        </Suspense>
     );
 }
