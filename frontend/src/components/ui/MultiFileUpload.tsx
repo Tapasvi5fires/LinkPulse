@@ -287,7 +287,7 @@ export function MultiFileUpload({ onUploadComplete, folderName: initialFolderNam
                     </div>
                     
                     {/* Horizontal Scroller for File Queue */}
-                    <ScrollArea className="w-full border-b border-slate-200 dark:border-slate-800" type="always">
+                    <ScrollArea className="w-full border-b border-slate-200 dark:border-slate-800" type="always" bothAxes>
                         <div className="flex p-4 gap-4 min-w-max">
                             {files.map((fileStatus, index) => (
                                 <div key={index} className="relative w-48 shrink-0 flex flex-col items-center p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-indigo-500/50 transition-all group shadow-sm">
