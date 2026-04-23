@@ -33,7 +33,18 @@ try:
     async def startup_event():
         from sqlalchemy import text
         import asyncio
+        import socket
         
+        # Network Diagnostic
+        try:
+            from urllib.parse import urlparse
+            p = urlparse(settings.ASYNC_DATABASE_URL.replace("postgresql+asyncpg://", "http://"))
+            print(f"DIAGNOSTIC: Attempting to reach {p.hostname} on port {p.port}...")
+            socket.create_connection((p.hostname, p.port), timeout=5)
+            print(f"DIAGNOSTIC: Success! Network path to {p.hostname} is OPEN.")
+        except Exception as e:
+            print(f"DIAGNOSTIC: FAILED! Cannot reach host. Error: {e}")
+            
         max_retries = 5
         retry_delay = 5
         
