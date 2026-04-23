@@ -137,14 +137,20 @@ async def upload_files(
         else: continue
              
         # 2. Save to temp first, then upload via StorageService
-        file_id = str(uuid.uuid4())
-        clean_filename = "".join(x for x in file.filename if x.isalnum() or x in "._- ")
-        unique_name = f"{file_id}_{clean_filename}"
+        file_id = str(uuid.uuid4())[:8]
+        # Ensure S3-safe filename: alphanumeric, periods, hyphens, and underscores only
+        clean_name = re.sub(r'[^a-zA-Z0-9._-]', '_', file.filename)
+        unique_name = f"{file_id}_{clean_name}"
         temp_path = os.path.join(TEMP_UPLOAD_DIR, unique_name)
         
         try:
+            # Use buffered copy for large multipart files
             with open(temp_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+                while chunk := await file.read(1024 * 1024): # 1MB chunks
+                    buffer.write(chunk)
+            
+            # Reset file pointer if we need to read it again (though we don't here)
+            await file.seek(0)
             
             # 3. Upload to permanent storage (Local or Cloud)
             storage_identifier = await storage_service.upload(temp_path, unique_name)
