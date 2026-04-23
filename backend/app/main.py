@@ -5,7 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
 from app.core.config import settings
 from app.core.logging_config import setup_logging
-from app.db.session import engine, Base
+from app.db.session import engine, SessionLocal
+from app.models.base import Base
+# Import models to ensure they are registered with Base.metadata
+from app.models.user import User
+from app.models.audit import AuditLog
 import asyncio
 
 # Setup logging
