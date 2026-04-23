@@ -99,7 +99,7 @@ class Settings(BaseSettings):
             # Force SSL
             if "ssl=" not in url and "sslmode=" not in url:
                 separator = "&" if "?" in url else "?"
-                url += f"{separator}sslmode=require"
+                url += f"{separator}ssl=require"
             
             # Ensure we are using the pooler port if it's the pooler host
             if "pooler.supabase.com" in url and ":6543" not in url and ":5432" not in url:
