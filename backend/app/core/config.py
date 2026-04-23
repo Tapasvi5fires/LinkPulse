@@ -79,7 +79,7 @@ class Settings(BaseSettings):
             return "sqlite+aiosqlite:///./missing_db_url.db"
         
         # Clean the URL (remove trailing spaces/newlines from copy-paste)
-        raw_url = self.DATABASE_URL.strip()
+        raw_url = self.DATABASE_URL.strip().replace("\r", "").replace("\n", "")
         url = raw_url.replace("postgresql://", "postgresql+asyncpg://")
         
         # DEBUG: Print parts of the URL to verify formatting (Safety: mask password)
@@ -104,8 +104,10 @@ class Settings(BaseSettings):
             if "postgres." in url:
                 project_ref = url.split("postgres.")[1].split(":")[0].split("@")[0].split("/")[0]
             elif "pooler.supabase.com" in url:
-                # Try to find the ref in the hostname
-                pass # Usually it's in the username
+                # Try to extract from the user part if it's not postgres.
+                u_part = url.split("://")[1].split(":")[0]
+                if "." in u_part:
+                    project_ref = u_part.split(".")[1]
             
             # 3. Force SSL: asyncpg wants 'ssl', not 'sslmode'
             url = url.replace("sslmode=", "ssl=")
