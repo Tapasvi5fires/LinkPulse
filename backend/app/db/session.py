@@ -3,15 +3,17 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.models.base import Base
 
-from sqlalchemy.pool import NullPool
-
-# Create async engine with NullPool for production
-# This is RECOMMENDED when using external poolers like Supabase (Port 6543)
+# Create async engine with a small, disciplined pool for production
+# Using a small pool (2-5) is better for Supabase Transaction Pooler (6543)
+# as it allows connection reuse without hitting global limits.
 engine = create_async_engine(
     settings.ASYNC_DATABASE_URL,
     echo=False,
     pool_pre_ping=True,
-    poolclass=NullPool,  # Disable client-side pooling
+    pool_size=2,          # Small base pool for reuse
+    max_overflow=10,      # Allow bursts
+    pool_recycle=1800,    # Recycle every 30 mins
+    pool_timeout=60,      # Wait up to 60s for a connection
     connect_args={
         "command_timeout": 60,
         "server_settings": {"search_path": "public"}
