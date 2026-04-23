@@ -264,85 +264,109 @@ export function MultiFileUpload({ onUploadComplete, folderName: initialFolderNam
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                             Queue ({files.length} items)
                         </span>
-                        {files.some(f => f.status === 'success') && (
+                        <div className="flex gap-2">
+                            {files.some(f => f.status === 'success') && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-[10px] uppercase font-bold text-indigo-500"
+                                    onClick={() => setFiles(files.filter(f => f.status !== 'success'))}
+                                >
+                                    Clear Finished
+                                </Button>
+                            )}
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 text-[10px] uppercase font-bold text-indigo-500"
-                                onClick={() => setFiles(files.filter(f => f.status !== 'success'))}
+                                className="h-6 text-[10px] uppercase font-bold text-red-500"
+                                onClick={() => setFiles([])}
                             >
-                                Clear Finished
+                                Clear All
                             </Button>
-                        )}
+                        </div>
                     </div>
-                    <ScrollArea className="h-[300px] w-full border-b border-slate-200 dark:border-slate-800" type="always">
-                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    
+                    {/* Horizontal Scroller for File Queue */}
+                    <ScrollArea className="w-full border-b border-slate-200 dark:border-slate-800" type="always">
+                        <div className="flex p-4 gap-4 min-w-max">
                             {files.map((fileStatus, index) => (
-                                <div key={index} className="flex items-center justify-between p-4 hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors gap-4">
-                                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                                <div key={index} className="relative w-48 shrink-0 flex flex-col items-center p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-indigo-500/50 transition-all group shadow-sm">
+                                    <div className="mb-3 relative">
                                         {getFileIcon(fileStatus.file)}
-                                        <div className="min-w-0 flex-1">
-                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate" title={fileStatus.file.name}>
-                                                {fileStatus.file.name}
-                                            </p>
-                                            <p className="text-[10px] text-slate-500 font-medium">
-                                                {(fileStatus.file.size / 1024 / 1024).toFixed(2)} MB
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-4">
                                         {fileStatus.status === 'uploading' && (
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-20 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${fileStatus.progress}%` }} />
-                                                </div>
-                                                <span className="text-[10px] font-black tabular-nums text-indigo-500">{Math.round(fileStatus.progress)}%</span>
+                                            <div className="absolute -bottom-1 -right-1">
+                                                <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
                                             </div>
                                         )}
-
                                         {fileStatus.status === 'success' && (
-                                            <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px]">Ready</Badge>
+                                            <div className="absolute -bottom-1 -right-1 bg-emerald-500 rounded-full p-0.5">
+                                                <CheckCircle className="h-3 w-3 text-white" />
+                                            </div>
                                         )}
-
                                         {fileStatus.status === 'error' && (
-                                            <span className="text-[10px] font-bold text-red-500">{fileStatus.message}</span>
-                                        )}
-
-                                        {!hasUploading && (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); removeFile(index); }}
-                                                className="text-slate-400 hover:text-red-500 transition-colors"
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </button>
+                                            <div className="absolute -bottom-1 -right-1 bg-red-500 rounded-full p-0.5">
+                                                <AlertCircle className="h-3 w-3 text-white" />
+                                            </div>
                                         )}
                                     </div>
+                                    
+                                    <div className="w-full text-center space-y-1">
+                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate w-full px-1" title={fileStatus.file.name}>
+                                            {fileStatus.file.name}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 font-medium">
+                                            {(fileStatus.file.size / 1024 / 1024).toFixed(2)} MB
+                                        </p>
+                                    </div>
+
+                                    {fileStatus.status === 'uploading' && (
+                                        <div className="w-full mt-3 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${fileStatus.progress}%` }} />
+                                        </div>
+                                    )}
+
+                                    {fileStatus.status === 'error' && (
+                                        <p className="mt-2 text-[9px] font-bold text-red-500 leading-tight">
+                                            {fileStatus.message}
+                                        </p>
+                                    )}
+
+                                    {!isUploading && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); removeFile(index); }}
+                                            className="absolute top-2 right-2 p-1 text-slate-300 hover:text-red-500 bg-white dark:bg-slate-900 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm border border-slate-100 dark:border-slate-800"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    )}
                                 </div>
                             ))}
                         </div>
                     </ScrollArea>
 
                     {(hasPending || isUploading) && (
-                        <div className="p-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Target Folder</span>
-                                <input
-                                    className="bg-transparent border-none text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none placeholder:text-slate-600"
-                                    placeholder="Ungrouped"
-                                    value={customFolderName}
-                                    onChange={(e) => setCustomFolderName(e.target.value)}
-                                />
+                        <div className="p-5 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex flex-col w-full sm:w-auto">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Target Folder</label>
+                                <div className="flex items-center gap-2 bg-white dark:bg-slate-950 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800">
+                                    <FolderOpen size={14} className="text-amber-500" />
+                                    <input
+                                        className="bg-transparent border-none text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none placeholder:text-slate-600 w-full min-w-[150px]"
+                                        placeholder="Ungrouped (click to name)"
+                                        value={customFolderName}
+                                        onChange={(e) => setCustomFolderName(e.target.value)}
+                                    />
+                                </div>
                             </div>
                             <Button
                                 onClick={handleUpload}
                                 disabled={isUploading || !hasPending}
-                                className="rounded-xl px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 shadow-lg shadow-indigo-500/20"
+                                className="w-full sm:w-auto rounded-xl px-8 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold h-11 shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95"
                             >
                                 {isUploading ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Ingesting...
+                                        Processing Ingestion...
                                     </>
                                 ) : (
                                     'Start Ingestion'
