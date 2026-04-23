@@ -66,8 +66,17 @@ try:
             # 2. Try with project_ref as database name
             candidates.append(c.replace("/postgres", f"/{project_ref}").replace(f"postgres.{project_ref}", "postgres"))
         
-        max_retries = 12 # More retries for more candidates
-        retry_delay = 3
+        # Add port fallbacks (Try 5432 if 6543 fails)
+        direct_candidates = []
+        for c in candidates:
+            direct_candidates.append(c.replace(":6543", ":5432"))
+            # Also try the direct DB hostname format
+            direct_candidates.append(c.replace("pooler.supabase.com:6543", f"db.{project_ref}.supabase.co:5432"))
+        
+        candidates.extend(direct_candidates)
+        
+        max_retries = 20 # Full spectrum test
+        retry_delay = 2
         
         for attempt in range(max_retries):
             # Rotate through candidates
