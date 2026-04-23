@@ -96,13 +96,28 @@ class Settings(BaseSettings):
         
         # Supabase specific fixes for Cloud (Render)
         if "supabase" in url:
-            # Force SSL: asyncpg wants 'ssl', not 'sslmode'
+            # 1. Extract project ref if present
+            project_ref = ""
+            if "postgres." in url:
+                project_ref = url.split("postgres.")[1].split(":")[0].split("@")[0].split("/")[0]
+            elif "pooler.supabase.com" in url:
+                # Try to find the ref in the hostname
+                pass # Usually it's in the username
+            
+            # 2. Force SSL: asyncpg wants 'ssl', not 'sslmode'
             url = url.replace("sslmode=", "ssl=")
             if "ssl=" not in url:
                 separator = "&" if "?" in url else "?"
                 url += f"{separator}ssl=require"
             
-            # Ensure we are using the pooler port if it's the pooler host
+            # 3. Universal Project ID Injection (The "Secret Sauce")
+            # Some poolers want it in the username, some in the options parameter
+            if project_ref:
+                if "options=project" not in url:
+                    separator = "&" if "?" in url else "?"
+                    url += f"{separator}options=project%3D{project_ref}"
+            
+            # 4. Ensure we are using the pooler port
             if "pooler.supabase.com" in url and ":6543" not in url and ":5432" not in url:
                 url = url.replace(".com/", ".com:6543/")
         
