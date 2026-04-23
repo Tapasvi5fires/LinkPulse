@@ -15,19 +15,31 @@ router = APIRouter()
 async def login_access_token(
     db: AsyncSession = Depends(deps.get_db), form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
-    user = await crud_user.authenticate(
-        db, email=form_data.username, password=form_data.password
-    )
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect email or password"
+    try:
+        user = await crud_user.authenticate(
+            db, email=form_data.username, password=form_data.password
         )
-    if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    return {
-        "access_token": security.create_access_token(
-            user.id, expires_delta=access_token_expires
-        ),
-        "token_type": "bearer",
-    }
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect email or password"
+            )
+        if not user.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        return {
+            "access_token": security.create_access_token(
+                user.id, expires_delta=access_token_expires
+            ),
+            "token_type": "bearer",
+        }
+    except Exception as e:
+        import logging
+        logging.error(f"LOGIN CRASH: {str(e)}")
+        # If it's already an HTTPException, re-raise it
+        if isinstance(e, HTTPException):
+            raise e
+        # Otherwise, raise a 500 with the error message so we can see it in the browser
+        raise HTTPException(
+            status_code=500,
+            detail=f"Login Backend Error: {str(e)}"
+        )

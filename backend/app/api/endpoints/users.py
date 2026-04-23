@@ -71,21 +71,31 @@ async def create_user_open(
     email: EmailStr = Body(...),
     full_name: str = Body(None),
 ) -> Any:
-    """
-    Open registration for the first user or if explicitly allowed (logic to be improved).
-    """
-    # Check if any user exists, if not, make this one superuser
-    users = await crud_user.get_multi(db, limit=1)
-    is_superuser = False
-    if not users:
-        is_superuser = True
-        
-    user = await crud_user.get_by_email(db, email=email)
-    if user:
+    try:
+        """
+        Open registration for the first user or if explicitly allowed.
+        """
+        # Check if any user exists, if not, make this one superuser
+        users = await crud_user.get_multi(db, limit=1)
+        is_superuser = False
+        if not users:
+            is_superuser = True
+            
+        user = await crud_user.get_by_email(db, email=email)
+        if user:
+            raise HTTPException(
+                status_code=400,
+                detail="The user with this username already exists in the system.",
+            )
+        user_in = UserCreate(email=email, password=password, full_name=full_name, is_superuser=is_superuser)
+        user = await crud_user.create(db, obj_in=user_in)
+        return user
+    except Exception as e:
+        import logging
+        logging.error(f"REGISTRATION CRASH: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(
-            status_code=400,
-            detail="The user with this username already exists in the system.",
+            status_code=500,
+            detail=f"Registration Backend Error: {str(e)}"
         )
-    user_in = UserCreate(email=email, password=password, full_name=full_name, is_superuser=is_superuser)
-    user = await crud_user.create(db, obj_in=user_in)
-    return user

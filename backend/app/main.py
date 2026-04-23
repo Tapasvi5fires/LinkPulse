@@ -27,6 +27,18 @@ try:
         allow_headers=["*"],
     )
 
+    # LOUD DEBUGGING MIDDLEWARE
+    @app.middleware("http")
+    async def log_requests(request, call_next):
+        print(f"🔥 REQUEST RECEIVED: {request.method} {request.url}")
+        try:
+            response = await call_next(request)
+            print(f"✅ RESPONSE SENT: {response.status_code}")
+            return response
+        except Exception as e:
+            print(f"💥 REQUEST CRASHED: {str(e)}")
+            raise e
+
     app.include_router(api_router, prefix=settings.API_V1_STR)
 
     @app.on_event("startup")
