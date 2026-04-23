@@ -35,6 +35,19 @@ async def process_ingestion_task(source_type: str, source_url: str, user_id: int
         from app.services.storage import storage_service
         
         logger.info(f"Starting ingestion for {source_url}")
+        
+        # Determine if source_url is a storage identifier (key) vs a real URL/path
+        # If it doesn't start with http, data/, or /, it's likely a cloud identifier
+        is_storage_key = not source_url.startswith(("http://", "https://", "data/", "/"))
+        actual_processing_url = source_url
+        temp_download_path = None
+
+        if is_storage_key:
+            logger.info(f"Source {source_url} is a storage key. Downloading for processing...")
+            file_id = str(uuid.uuid4())[:8]
+            temp_download_path = os.path.join(TEMP_UPLOAD_DIR, f"ingest_{file_id}_{source_url}")
+            actual_processing_url = await storage_service.download(source_url, temp_download_path)
+        
         if task_id:
             task_manager.add_task(task_id, user_id, source_url, source_type)
         
@@ -42,7 +55,7 @@ async def process_ingestion_task(source_type: str, source_url: str, user_id: int
         vector_db.delete_source(source_url, user_id)
         
         # 1. Ingest
-        documents = await ingestion_service.ingest_source(source_type, source_url, depth=depth)
+        documents = await ingestion_service.ingest_source(source_type, actual_processing_url, depth=depth)
         
         if not documents:
             logger.warning(f"No content extracted from {source_url}")
@@ -74,13 +87,20 @@ async def process_ingestion_task(source_type: str, source_url: str, user_id: int
             task_manager.fail_task(task_id, str(e))
     finally:
         # Cleanup temp file ONLY if it is in temp dir, NOT storage
+        files_to_cleanup = []
         if source_url and source_url.replace("\\", "/").startswith(TEMP_UPLOAD_DIR + "/") and not "data/storage" in source_url.replace("\\", "/"):
+            files_to_cleanup.append(source_url)
+        
+        if temp_download_path and os.path.exists(temp_download_path):
+            files_to_cleanup.append(temp_download_path)
+
+        for path in files_to_cleanup:
              try:
-                 if os.path.exists(source_url):
-                     os.remove(source_url)
-                     logger.info(f"Cleaned up temp file: {source_url}")
+                 if os.path.exists(path):
+                     os.remove(path)
+                     logger.info(f"Cleaned up temp file: {path}")
              except Exception as cleanup_error:
-                 logger.warning(f"Error cleaning up {source_url}: {cleanup_error}")
+                 logger.warning(f"Error cleaning up {path}: {cleanup_error}")
 
 
 @router.post("/upload", response_model=IngestResponse)

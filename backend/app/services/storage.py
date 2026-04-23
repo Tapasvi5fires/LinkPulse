@@ -151,4 +151,40 @@ class StorageService:
                 except Exception as e:
                     logger.warning(f"Failed to delete local file {identifier}: {e}")
 
+    async def download(self, identifier: str, destination_path: str) -> str:
+        """Download a file from storage to a local path."""
+        if self.backend == "supabase":
+            # Prefer S3
+            if self.backend_type == "s3":
+                try:
+                    async with self._get_s3_client() as s3:
+                        await s3.download_file(
+                            settings.STORAGE_BUCKET,
+                            identifier,
+                            destination_path
+                        )
+                    return destination_path
+                except Exception as e:
+                    logger.warning(f"S3 download failed, trying standard Supabase client: {e}")
+            
+            # Use Standard Client
+            try:
+                if not self.supabase_client:
+                    from supabase import create_client
+                    self.supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+                
+                with open(destination_path, "wb") as f:
+                    res = self.supabase_client.storage.from_(settings.STORAGE_BUCKET).download(identifier)
+                    f.write(res)
+                return destination_path
+            except Exception as e:
+                logger.error(f"Storage download failed: {e}")
+                raise e
+        else:
+            # Local storage
+            local_path = os.path.join(self.local_dir, identifier)
+            if local_path != destination_path:
+                shutil.copy2(local_path, destination_path)
+            return destination_path
+
 storage_service = StorageService()
