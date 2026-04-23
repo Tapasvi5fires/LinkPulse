@@ -68,16 +68,24 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:8090",
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:8090"
+        "http://127.0.0.1:8090",
+        "https://linkpulse-frontend.vercel.app" # Default placeholder
     ]
 
     @property
     def CORS_ORIGINS(self) -> List[str]:
         origins = self.BACKEND_CORS_ORIGINS.copy()
-        if self.FRONTEND_URL not in origins:
+        
+        # Add values from Env vars if they exist
+        if self.FRONTEND_URL and self.FRONTEND_URL not in origins:
             origins.append(self.FRONTEND_URL)
-        if self.BACKEND_URL not in origins:
+            # Also add without trailing slash just in case
+            if self.FRONTEND_URL.endswith("/"):
+                origins.append(self.FRONTEND_URL[:-1])
+                
+        if self.BACKEND_URL and self.BACKEND_URL not in origins:
             origins.append(self.BACKEND_URL)
+            
         return list(set(origins))
 
     @property
