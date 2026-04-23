@@ -17,7 +17,9 @@ engine = create_async_engine(
     pool_use_lifo=True,   # Always use the freshest connection first
     connect_args={
         "command_timeout": 60,
-        "server_settings": {"search_path": "public"}
+        "server_settings": {"search_path": "public"},
+        "prepared_statement_cache_size": 0,  # REQUIRED for Supabase/PgBouncer Transaction Mode
+        "statement_cache_size": 0            # Disable prepared statements entirely
     }
 )
 
