@@ -83,9 +83,16 @@ class Settings(BaseSettings):
         try:
             from urllib.parse import urlparse
             p = urlparse(url.replace("postgresql+asyncpg://", "http://"))
-            print(f"DEBUG: DB Config -> Host: {p.hostname} | Port: {p.port} | User: {p.username} | DB: {p.path[1:]}")
-        except:
-            pass
+            print(f"--- DB DEBUG START ---")
+            print(f"Scheme: postgresql+asyncpg")
+            print(f"Host: {p.hostname}")
+            print(f"Port: {p.port}")
+            print(f"User: {p.username}")
+            print(f"DB Name: {p.path[1:]}")
+            print(f"Query: {p.query}")
+            print(f"--- DB DEBUG END ---")
+        except Exception as e:
+            print(f"DEBUG Error: {e}")
         
         # Supabase specific fixes for Cloud (Render)
         if "supabase" in url:
