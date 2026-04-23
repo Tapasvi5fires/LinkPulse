@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # OpenAI (Deprecated but kept for reference/fallback if needed)
     OPENAI_API_KEY: Optional[str] = None
     
+    # App Configuration
+    USE_GEMINI_EMBEDDINGS: bool = True
+    
     # Ports (used for CORS and other config)
     BACKEND_PORT: int = 8090
     FRONTEND_PORT: int = 3090

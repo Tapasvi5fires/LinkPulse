@@ -22,7 +22,7 @@ class EmbeddingService:
     def __init__(self):
         # Determine provider: Default to Gemini in production/cloud to save RAM
         # On Render Free Tier (512MB), we MUST use Gemini to avoid OOM crashes
-        self.use_gemini = bool(settings.GEMINI_API_KEY) and os.getenv("USE_GEMINI_EMBEDDINGS", "True").lower() == "true"
+        self.use_gemini = bool(settings.GEMINI_API_KEY) and settings.USE_GEMINI_EMBEDDINGS
         
         if self.use_gemini:
              logger.info("Using Gemini Cloud Embeddings (RAM-safe mode)")
