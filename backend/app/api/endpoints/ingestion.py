@@ -12,6 +12,9 @@ import shutil
 import os
 import uuid
 import re
+from urllib.parse import urlparse
+from app.services.processing.vector_db import vector_db
+from app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
 
@@ -209,65 +212,71 @@ def _extract_group(meta: dict) -> str | None:
     return None
 
 
-@router.get("/sources", response_model=List[Any])
+@router.get("/sources")
 async def get_ingested_sources(
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
     Get list of all ingested sources with secure on-demand signed URLs.
     """
-    from app.services.processing.vector_db import vector_db
-    from app.services.storage import storage_service
-    
-    sources = {}
     try:
-        user_metadata = vector_db.get_user_metadata(current_user.id)
-    except Exception as e:
-        logger.error(f"Failed to fetch metadata from Qdrant: {e}")
-        return []
-    
-    for i, meta in user_metadata.items():
+        sources = {}
         try:
-            if not meta:
+            user_metadata = vector_db.get_user_metadata(current_user.id)
+        except Exception as e:
+            logger.error(f"Failed to fetch metadata from Qdrant: {e}")
+            return []
+        
+        if not user_metadata:
+            return []
+
+        for i, meta in user_metadata.items():
+            try:
+                if not meta:
+                    continue
+                    
+                source_url = meta.get("source_url") or meta.get("url")
+                if not source_url:
+                    title = meta.get("title", "unknown")
+                    source_url = f"doc_{title}"
+                
+                # Skip if we already processed this source
+                if source_url in sources:
+                    continue
+
+                # Check if source_url is a storage identifier (Local path or Cloud key)
+                download_url = None
+                try:
+                    # Generate fresh signed URL on-demand
+                    if source_url and not source_url.startswith(("http://", "https://")):
+                        download_url = await storage_service.get_signed_url(source_url)
+                    elif source_url and ("data/storage" in source_url or "_" in source_url):
+                        download_url = await storage_service.get_signed_url(source_url)
+                except Exception as storage_err:
+                    logger.warning(f"Could not generate signed URL for {source_url}: {storage_err}")
+                    download_url = None
+
+                group = _extract_group(meta)
+                sources[source_url] = {
+                    "source_url": str(source_url),
+                    "source_type": str(meta.get("source_type", "unknown")),
+                    "title": str(meta.get("title", source_url)),
+                    "ingested_at": meta.get("ingested_at"),
+                    "id": str(i),
+                    "download_url": download_url,
+                    "group": group,
+                    "repo": meta.get("repo"),
+                    "path": meta.get("path"),
+                    "folder_name": meta.get("folder_name"),
+                }
+            except Exception as item_error:
+                logger.error(f"Error processing source item {i}: {item_error}")
                 continue
                 
-            source_url = meta.get("source_url") or meta.get("url")
-            if not source_url:
-                title = meta.get("title", "unknown")
-                source_url = f"doc_{title}"
-            
-            # Skip if we already processed this source
-            if source_url in sources:
-                continue
-
-            # Check if source_url is a storage identifier (Local path or Cloud key)
-            download_url = None
-            try:
-                # Generate fresh signed URL on-demand
-                if source_url and not source_url.startswith(("http://", "https://")):
-                    download_url = storage_service.get_signed_url(source_url)
-                elif source_url and ("data/storage" in source_url or "_" in source_url):
-                    download_url = storage_service.get_signed_url(source_url)
-            except Exception as storage_err:
-                logger.warning(f"Could not generate signed URL for {source_url}: {storage_err}")
-                download_url = None
-
-            group = _extract_group(meta)
-            sources[source_url] = {
-                "source_url": source_url,
-                "source_type": meta.get("source_type", "unknown"),
-                "title": meta.get("title", source_url),
-                "ingested_at": meta.get("ingested_at"),
-                "id": str(i),
-                "download_url": download_url,
-                "group": group,
-                "repo": meta.get("repo"),
-                "path": meta.get("path"),
-                "folder_name": meta.get("folder_name"),
-            }
-        except Exception as item_error:
-            logger.error(f"Error processing source item {i}: {item_error}")
-    return list(sources.values())
+        return list(sources.values())
+    except Exception as e:
+        logger.error(f"Global error in /sources: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error while fetching sources")
 
 
 @router.post("/url", response_model=IngestResponse)
