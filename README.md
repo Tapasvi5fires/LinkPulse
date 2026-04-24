@@ -62,7 +62,7 @@ To ensure high availability and scalability, LinkPulse is distributed across ind
 
 ---
 
-## 🏗️ 2024 Cloud Optimization (Dual-Architecture)
+## 🏗️ Cloud Optimization (Dual-Architecture)
 LinkPulse now features an intelligent **Dual-Engine** architecture to support both high-performance local clusters and resource-constrained cloud tiers:
 
 - **RAM Optimized (Cloud)**: Uses FastAPI `BackgroundTasks` instead of Celery on Render Free Tier to save 150MB+ RAM.
