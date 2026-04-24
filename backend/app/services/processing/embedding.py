@@ -47,26 +47,37 @@ class EmbeddingService:
         """Try multiple model names and versions to avoid 404 errors."""
         # List of models to try in order of preference
         models_to_try = [
-            "models/text-embedding-004", 
-            "models/gemini-embedding-001",
-            "models/gemini-embedding-2-preview",
-            "models/embedding-001",
-            "text-embedding-004",
-            "gemini-embedding-001"
+            "models/gemini-embedding-001",   # 768 dim (Preferred for your current DB)
+            "models/embedding-001",          # 768 dim (Legacy)
+            "gemini-embedding-001",          # 768 dim
+            "models/text-embedding-004",     # 3072 dim
+            "models/gemini-embedding-2-preview"
         ]
         
         last_err = None
         for model_name in models_to_try:
             try:
+                # Use output_dimensionality to force 768 if the model supports it
+                # (Supported by text-embedding-004 and gemini-embedding-001)
                 result = genai.embed_content(
                     model=model_name,
                     content=text,
-                    task_type=task_type
+                    task_type=task_type,
+                    output_dimensionality=768
                 )
                 return result['embedding']
             except Exception as e:
-                last_err = e
-                continue
+                # If output_dimensionality is not supported by this specific model/version, try without it
+                try:
+                    result = genai.embed_content(
+                        model=model_name,
+                        content=text,
+                        task_type=task_type
+                    )
+                    return result['embedding']
+                except Exception:
+                    last_err = e
+                    continue
         
         raise last_err
 
