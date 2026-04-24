@@ -62,6 +62,16 @@ To ensure high availability and scalability, LinkPulse is distributed across ind
 
 ---
 
+## 🏗️ 2024 Cloud Optimization (Dual-Architecture)
+LinkPulse now features an intelligent **Dual-Engine** architecture to support both high-performance local clusters and resource-constrained cloud tiers:
+
+- **RAM Optimized (Cloud)**: Uses FastAPI `BackgroundTasks` instead of Celery on Render Free Tier to save 150MB+ RAM.
+- **Supabase Pooler Hardening**: Automatic detection and forced connection to **Port 6543** (Transaction Mode).
+- **Gemini Embedding Fallback**: Automated model discovery to ensure 100% uptime for vector processing.
+- **Dimension Matching**: Forces output to **768-dim** for seamless compatibility with existing collections.
+
+---
+
 ## 🧠 Gen AI & RAG Architecture
 
 ### 🛡️ Intelligent Retrieval
@@ -74,13 +84,13 @@ LinkPulse uses a multi-stage retrieval pipeline to ensure maximum precision:
 ### ✍️ Prompt Engineering & Personas
 Dynamic system instructions tailor the AI's response to your needs:
 - **Professional**: Balanced, thorough, and business-oriented.
-- **Developer**: Technical, precise, with code snippets and architecture focus.
+- **Developer**: Technical, precise, with code snippets.
 - **ELI5**: Simple language, analogies, and emojis.
 - **Academic**: Formal, rigorously cited, and analytical.
 
 ### 🔗 Knowledge Synthesis
 - **Conflict Resolution**: Highlights contradictions between internal documents and live web data.
-- **Source Citation**: Automatic inline citations for both internal (`Internal: Doc Name`) and web (`[🌐 Page Title](URL)`) sources.
+- **Source Citation**: Automatic inline citations for both internal (`Internal: Doc Name`) and web sources.
 
 ---
 
@@ -89,12 +99,12 @@ Dynamic system instructions tailor the AI's response to your needs:
 | Component | Technology |
 | :--- | :--- |
 | **Frontend** | Next.js 14, React 18, Tailwind CSS, Framer Motion, Recharts |
-| **Backend** | Python 3.10+, FastAPI, SQLAlchemy (PostgreSQL), Alembic |
+| **Backend** | Python 3.12+, FastAPI, SQLAlchemy (PostgreSQL), Alembic |
 | **Vector Engine** | **Qdrant** (Vector Database) |
-| **Task Queue** | **Celery** + **Redis** (Asynchronous processing) |
+| **Task Queue** | **Celery** + **Redis** (Scalable Local) / **BackgroundTasks** (Cloud) |
 | **AI Models** | **Gemini 2.0 Flash**, **Groq (Llama 3.3 70B)**, LangChain |
-| **Embeddings** | HuggingFace Sentence Transformers |
-| **Search API** | Tavily AI |
+| **Embeddings** | **Gemini Cloud** (Primary) + **HuggingFace** (Local Fallback) |
+| **Search API** | **Tavily AI** (Real-time Search) |
 | **Web Scraping** | Playwright, Trafilatura, BeautifulSoup4 |
 | **Auth** | OAuth 2.0 (Google, GitHub) |
 
@@ -179,11 +189,8 @@ LINKPULSE/
 │   │   ├── api/            # Endpoints (Chat, Ingestion, OAuth)
 │   │   ├── services/       # Core Logic (LLM, Retrieval, Ingestion)
 │   │   └── models/         # Database Schemas
-│   ├── Dockerfile          # Standard Docker Image
-│   └── Dockerfile.local    # CPU-optimized Image
 ├── frontend/               # Next.js Dashboard & Chat UI
-├── docker-compose.yml      # Multi-service Orchestration
-└── .env                    # Environment Configuration
+└── docker-compose.yml      # Multi-service Orchestration
 ```
 
 ---
