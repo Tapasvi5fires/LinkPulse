@@ -173,6 +173,7 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
+        extra = 'ignore' # Allow extra fields in .env without crashing
         # Use an absolute path relative to this file to find the .env in the root
         env_file = os.path.join(os.path.dirname(__file__), "../../../.env")
 
