@@ -43,33 +43,43 @@ class EmbeddingService:
                 raise
         return _model
 
+    def _get_gemini_embedding(self, text: str, task_type: str) -> List[float]:
+        """Try multiple model names and versions to avoid 404 errors."""
+        # List of models to try in order of preference
+        models_to_try = [
+            "models/text-embedding-004", 
+            "models/gemini-embedding-001",
+            "models/gemini-embedding-2-preview",
+            "models/embedding-001",
+            "text-embedding-004",
+            "gemini-embedding-001"
+        ]
+        
+        last_err = None
+        for model_name in models_to_try:
+            try:
+                result = genai.embed_content(
+                    model=model_name,
+                    content=text,
+                    task_type=task_type
+                )
+                return result['embedding']
+            except Exception as e:
+                last_err = e
+                continue
+        
+        raise last_err
+
     def embed_query(self, text: str) -> List[float]:
         try:
             if self.use_gemini:
-                # Gemini embedding model
-                result = genai.embed_content(
-                    model="models/embedding-001",
-                    content=text,
-                    task_type="retrieval_query"
-                )
-                return result['embedding']
+                return self._get_gemini_embedding(text, "retrieval_query")
             
-            # Local fallback (if not using Gemini)
+            # Local fallback
             model = self._get_local_model()
             return model.encode(text).tolist()
         except Exception as e:
-            logger.error(f"Embedding failed: {e}")
-            if not self.use_gemini:
-                logger.info("Attempting Emergency Fallback to Gemini...")
-                try:
-                    result = genai.embed_content(
-                        model="models/embedding-001",
-                        content=text,
-                        task_type="retrieval_query"
-                    )
-                    return result['embedding']
-                except Exception as gem_e:
-                    logger.error(f"Gemini fallback also failed: {gem_e}")
+            logger.error(f"Embedding query failed: {e}")
             raise
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
@@ -77,12 +87,8 @@ class EmbeddingService:
             if self.use_gemini:
                 embeddings = []
                 for text in texts:
-                    result = genai.embed_content(
-                        model="models/embedding-001",
-                        content=text,
-                        task_type="retrieval_document"
-                    )
-                    embeddings.append(result['embedding'])
+                    emb = self._get_gemini_embedding(text, "retrieval_document")
+                    embeddings.append(emb)
                 return embeddings
 
             # Local fallback
@@ -91,20 +97,6 @@ class EmbeddingService:
             return embeddings.tolist()
         except Exception as e:
             logger.error(f"Batch embedding failed: {e}")
-            if not self.use_gemini:
-                logger.info("Attempting Emergency Fallback to Gemini for documents...")
-                try:
-                    embeddings = []
-                    for text in texts:
-                        result = genai.embed_content(
-                            model="models/embedding-001",
-                            content=text,
-                            task_type="retrieval_document"
-                        )
-                        embeddings.append(result['embedding'])
-                    return embeddings
-                except Exception as gem_e:
-                    logger.error(f"Gemini fallback failed: {gem_e}")
             raise
 
 embedding_service = EmbeddingService()
