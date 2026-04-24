@@ -220,22 +220,38 @@ async def get_ingested_sources(
     from app.services.storage import storage_service
     
     sources = {}
-    user_metadata = vector_db.get_user_metadata(current_user.id)
+    try:
+        user_metadata = vector_db.get_user_metadata(current_user.id)
+    except Exception as e:
+        logger.error(f"Failed to fetch metadata from Qdrant: {e}")
+        return []
     
     for i, meta in user_metadata.items():
-        source_url = meta.get("source_url") or meta.get("url") or f"doc_{meta.get('title', 'unknown')}"
-        
-        # Check if source_url is a storage identifier (Local path or Cloud key)
-        download_url = None
-        # We assume if it's not a standard HTTP URL, it's a storage identifier
-        if source_url and not source_url.startswith(("http://", "https://")):
-             # Generate fresh signed URL on-demand
-             download_url = storage_service.get_signed_url(source_url)
-        elif source_url and ("data/storage" in source_url or "_" in source_url):
-             # Legacy or local storage path
-             download_url = storage_service.get_signed_url(source_url)
+        try:
+            if not meta:
+                continue
+                
+            source_url = meta.get("source_url") or meta.get("url")
+            if not source_url:
+                title = meta.get("title", "unknown")
+                source_url = f"doc_{title}"
+            
+            # Skip if we already processed this source
+            if source_url in sources:
+                continue
 
-        if source_url not in sources:
+            # Check if source_url is a storage identifier (Local path or Cloud key)
+            download_url = None
+            try:
+                # Generate fresh signed URL on-demand
+                if source_url and not source_url.startswith(("http://", "https://")):
+                    download_url = storage_service.get_signed_url(source_url)
+                elif source_url and ("data/storage" in source_url or "_" in source_url):
+                    download_url = storage_service.get_signed_url(source_url)
+            except Exception as storage_err:
+                logger.warning(f"Could not generate signed URL for {source_url}: {storage_err}")
+                download_url = None
+
             group = _extract_group(meta)
             sources[source_url] = {
                 "source_url": source_url,
@@ -249,7 +265,8 @@ async def get_ingested_sources(
                 "path": meta.get("path"),
                 "folder_name": meta.get("folder_name"),
             }
-            
+        except Exception as item_error:
+            logger.error(f"Error processing source item {i}: {item_error}")
     return list(sources.values())
 
 
