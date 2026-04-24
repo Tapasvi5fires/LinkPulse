@@ -7,8 +7,9 @@ email-validator
 psycopg2-binary
 asyncpg
 alembic
-celery
-redis
+# Background processing (Using FastAPI BackgroundTasks for Free Tier)
+# celery
+# redis
 requests
 python-jose[cryptography]
 passlib[bcrypt]

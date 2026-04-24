@@ -3,25 +3,25 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.models.base import Base
 
-# Create async engine with a small, disciplined pool for production
-# Using a small pool (2-5) is better for Supabase Transaction Pooler (6543)
-# as it allows connection reuse without hitting global limits.
+# Create async engine with a robust pool for production/cloud
+# Optimized for Render Free Tier: Sharing 60 Supabase connections 
+# across processes without hitting limits.
 engine = create_async_engine(
     settings.ASYNC_DATABASE_URL,
-    echo=False,
-    pool_size=2,          # Small base pool for reuse
-    max_overflow=15,      # Allow bursts
-    pool_recycle=60,      # Recycle VERY fast
-    pool_timeout=30,      # Wait up to 30s for a connection
-    pool_use_lifo=True,   # Always use the freshest connection first
+    echo=False,           
+    pool_size=10,         # 10 connections per process
+    max_overflow=5,       # 15 total per process (prevents pool exhaustion)
+    pool_recycle=30,      # Recycle faster (Supabase kills idle connections)
+    pool_timeout=30,      
+    pool_use_lifo=True,
+    pool_pre_ping=True,   # CRITICAL: Check connection health before use
     connect_args={
         "command_timeout": 60,
         "server_settings": {"search_path": "public"},
-        "prepared_statement_cache_size": 0,  # CRITICAL: Disable asyncpg's internal cache
-        "statement_cache_size": 0            # CRITICAL: Disable SQLAlchemy's statement cache
+        "prepared_statement_cache_size": 0,
+        "statement_cache_size": 0
     }
 )
-# Note: pool_pre_ping is disabled because it can cause 'prepared statement' errors in Transaction Mode
 
 # Create session factory
 SessionLocal = sessionmaker(

@@ -14,9 +14,9 @@ class Settings(BaseSettings):
     POSTGRES_DB: Optional[str] = None
     DATABASE_URL: Optional[str] = None
     
-    REDIS_URL: str = "redis://localhost:6379/0"
-    CELERY_BROKER_URL: str = "redis://localhost:6379/1"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
+    # REDIS_URL: str = "redis://localhost:6379/0"
+    # CELERY_BROKER_URL: str = "redis://localhost:6379/1"
+    # CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
     
     # Storage Configuration
     STORAGE_BACKEND: str = "local" # local or supabase
@@ -70,7 +70,11 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://127.0.0.1:8090",
         "https://linkpulse-eta.vercel.app",
-        "https://linkpulse-frontend.vercel.app"
+        "https://linkpulse-eta.vercel.app/",
+        "https://linkpulse-frontend.vercel.app",
+        "https://linkpulse-frontend.vercel.app/",
+        "https://linkpulse-backend-klv2.onrender.com",
+        "https://linkpulse-backend-klv2.onrender.com/"
     ]
 
     @property
@@ -92,89 +96,74 @@ class Settings(BaseSettings):
     @property
     def ASYNC_DATABASE_URL(self) -> str:
         if not self.DATABASE_URL:
+            # Fallback for local dev if DATABASE_URL is missing
             return "sqlite+aiosqlite:///./missing_db_url.db"
         
-        # Clean the URL (remove trailing spaces/newlines from copy-paste)
-        raw_url = self.DATABASE_URL.strip().replace("\r", "").replace("\n", "")
-        url = raw_url.replace("postgresql://", "postgresql+asyncpg://")
+        # 1. Basic Cleaning
+        url = self.DATABASE_URL.strip().replace("\r", "").replace("\n", "")
         
-        # DEBUG: Print parts of the URL to verify formatting (Safety: mask password)
+        # 2. Normalize to a parseable format (temporarily use http for urlparse)
+        # We need to handle postgres://, postgresql://, or even postgresql+asyncpg://
+        for prefix in ["postgresql+asyncpg://", "postgresql://", "postgres://"]:
+            if url.startswith(prefix):
+                temp_url = url.replace(prefix, "http://", 1)
+                break
+        else:
+            # If no known prefix, just try to parse what we have or return as is
+            temp_url = url if "://" in url else f"http://{url}"
+
         try:
-            from urllib.parse import urlparse
-            p = urlparse(url.replace("postgresql+asyncpg://", "http://"))
-            print(f"--- DB DEBUG START ---")
-            print(f"Scheme: postgresql+asyncpg")
-            print(f"Host: {p.hostname}")
-            print(f"Port: {p.port}")
-            print(f"User: {p.username}")
-            print(f"DB Name: {p.path[1:]}")
-            print(f"Query: {p.query}")
-            print(f"--- DB DEBUG END ---")
+            from urllib.parse import urlparse, quote_plus, parse_qs, urlencode
+            p = urlparse(temp_url)
+            
+            # Extract components
+            username = p.username or "postgres"
+            password = p.password or ""
+            hostname = p.hostname
+            port = p.port or 5432
+            path = p.path
+            query_params = parse_qs(p.query)
+            
+            # SUPABASE POOLER (6543) SPECIAL HANDLING
+            is_supabase = "supabase" in (hostname or "") or "pooler" in (hostname or "")
+            
+            if is_supabase:
+                # Force Port 6543 for Transaction Mode (Highly recommended for FastAPI)
+                if port == 5432:
+                    port = 6543
+                
+                # Force Username suffix for Pooler (postgres.[ref])
+                if port == 6543 and "." not in username:
+                    if self.SUPABASE_URL and "supabase.co" in self.SUPABASE_URL:
+                        try:
+                            ref = self.SUPABASE_URL.split("://")[1].split(".")[0]
+                            username = f"postgres.{ref}"
+                        except Exception: pass
+            
+            # Robust Password Encoding (unquoted by urlparse, must be re-quoted for the final string)
+            encoded_password = quote_plus(password)
+            
+            # Asyncpg SSL normalization
+            if "sslmode" in query_params:
+                val = query_params.pop("sslmode")
+                query_params["ssl"] = val
+            
+            if is_supabase and "ssl" not in query_params:
+                query_params["ssl"] = ["require"]
+            
+            # Reconstruct final URL with the required asyncpg driver
+            new_query = urlencode(query_params, doseq=True)
+            final_url = f"postgresql+asyncpg://{username}:{encoded_password}@{hostname}:{port}{path}"
+            if new_query:
+                final_url += f"?{new_query}"
+            
+            return final_url
+            
         except Exception as e:
-            print(f"DEBUG Error: {e}")
-        
-        # Supabase specific fixes for Cloud (Render)
-        if "supabase" in url:
-            # 1. Extract project ref if present
-            project_ref = ""
-            if "postgres." in url:
-                project_ref = url.split("postgres.")[1].split(":")[0].split("@")[0].split("/")[0]
-            elif "pooler.supabase.com" in url:
-                # Try to extract from the user part if it's not postgres.
-                u_part = url.split("://")[1].split(":")[0]
-                if "." in u_part:
-                    project_ref = u_part.split(".")[1]
-            
-            # 2. Reconstruct URL to ensure it's clean and encoded
-            try:
-                from urllib.parse import quote_plus
-                # If we have a project ref, ensure it's in the username correctly
-                if "@" in url:
-                    prefix = url.split("://")[0]
-                    rest = url.split("://")[1]
-                    user_pass = rest.split("@")[0]
-                    host_port_db = rest.split("@")[1]
-                    
-                    if ":" in user_pass:
-                        user = user_pass.split(":")[0]
-                        password = user_pass.split(":")[1]
-                        
-                        # Encode password to handle special characters
-                        encoded_password = quote_plus(password)
-                        
-                        # Ensure user is postgres.ref if applicable
-                        if project_ref and "." not in user:
-                            user = f"postgres.{project_ref}"
-                        
-                        # Reconstruct with encoded password
-                        url = f"{prefix}://{user}:{encoded_password}@{host_port_db}"
-            except Exception as encode_err:
-                print(f"URL Encoding Warning: {encode_err}")
-            
-            # 3. Force SSL: asyncpg wants 'ssl', not 'sslmode'
-            url = url.replace("sslmode=", "ssl=")
-            if "ssl=" not in url:
-                separator = "&" if "?" in url else "?"
-                url += f"{separator}ssl=require"
-            
-            # 4. Force Pooler Port (6543 is Transaction Mode, 5432 is Session Mode)
-            # Transaction Mode is REQUIRED for high-concurrency apps (FastAPI + Celery)
-            if "pooler.supabase.com" in url:
-                if ":5432" in url:
-                    url = url.replace(":5432", ":6543")
-                    print("FORCED: Switched from Session Mode (5432) to Transaction Mode (6543) for Supabase Pooler.")
-                elif ":6543" not in url:
-                    url = url.replace(".com/", ".com:6543/")
-            
-            # 5. Regional Auto-Detector (The "Safety Net")
-            # If the user specified ap-south-1 but the project is in us-east-1 (or vice versa),
-            # we can't fix it here easily without a restart, but we can log a better hint.
-            if "ap-south-1" in url:
-                print("HINT: If this fails, your project might be in us-east-1. Check Supabase Settings -> Database.")
-            elif "us-east-1" in url:
-                print("HINT: If this fails, your project might be in ap-south-1. Check Supabase Settings -> Database.")
-        
-        return url
+            # Fatal fallback if reconstruction fails
+            print(f"CRITICAL: DB URL Reconstruction failed: {e}")
+            # Last ditch attempt: simple string replacement
+            return url.replace("postgres://", "postgresql+asyncpg://").replace("postgresql://", "postgresql+asyncpg://")
 
     class Config:
         case_sensitive = True

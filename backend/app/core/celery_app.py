@@ -3,9 +3,18 @@ from app.core.config import settings
 
 celery_app = Celery(
     "worker", 
-    broker=settings.CELERY_BROKER_URL,
-    backend=settings.CELERY_RESULT_BACKEND
+    broker="redis://localhost:6379/1", # Hardcoded default for safety
+    backend="redis://localhost:6379/2"
 )
+
+# Optional: Try to load from settings if they are uncommented
+try:
+    if hasattr(settings, "CELERY_BROKER_URL") and settings.CELERY_BROKER_URL:
+        celery_app.conf.broker_url = settings.CELERY_BROKER_URL
+    if hasattr(settings, "CELERY_RESULT_BACKEND") and settings.CELERY_RESULT_BACKEND:
+        celery_app.conf.result_backend = settings.CELERY_RESULT_BACKEND
+except Exception:
+    pass
 
 celery_app.conf.update(
     task_serializer="json",
@@ -21,13 +30,13 @@ celery_app.conf.update(
 )
 
 # Fix for Upstash/SSL Redis
-if "rediss://" in settings.CELERY_BROKER_URL:
-    celery_app.conf.broker_use_ssl = {
-        'ssl_cert_reqs': 0 # ssl.CERT_NONE
-    }
-    celery_app.conf.redis_backend_use_ssl = {
-        'ssl_cert_reqs': 0 # ssl.CERT_NONE
-    }
+try:
+    broker_url = getattr(settings, "CELERY_BROKER_URL", "")
+    if broker_url and "rediss://" in broker_url:
+        celery_app.conf.broker_use_ssl = {'ssl_cert_reqs': 0}
+        celery_app.conf.redis_backend_use_ssl = {'ssl_cert_reqs': 0}
+except Exception:
+    pass
 
 celery_app.conf.task_routes = {
     "app.workers.*": "main-queue",

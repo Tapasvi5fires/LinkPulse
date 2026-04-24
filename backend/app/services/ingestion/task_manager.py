@@ -1,6 +1,6 @@
 import logging
 import json
-import redis
+# redis imported dynamically in TaskManager if needed
 from typing import Dict, List, Set, Any
 from datetime import datetime, timedelta
 from app.core.config import settings
@@ -13,16 +13,21 @@ class TaskManager:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(TaskManager, cls).__new__(cls)
-            # Use Redis for production persistence
+            cls._instance.tasks: Dict[str, Any] = {}
+            # Redis is optional for Free Tier
             try:
-                cls._instance.redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
-                cls._instance.redis.ping()
-                cls._instance.use_redis = True
-                logger.info("TaskManager: Using Redis for task persistence.")
-            except Exception as e:
-                logger.warning(f"TaskManager: Redis not available ({e}). Falling back to in-memory.")
+                import redis
+                from app.core.config import settings
+                if hasattr(settings, "REDIS_URL") and settings.REDIS_URL:
+                    cls._instance.redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
+                    cls._instance.redis.ping()
+                    cls._instance.use_redis = True
+                    logger.info("TaskManager: Using Redis for task persistence.")
+                else:
+                    cls._instance.use_redis = False
+            except (ImportError, Exception) as e:
+                logger.info(f"TaskManager: Redis not used ({type(e).__name__}). Using in-memory storage.")
                 cls._instance.use_redis = False
-                cls._instance.tasks: Dict[str, Any] = {}
         return cls._instance
 
     def _get_key(self, task_id: str) -> str:
