@@ -96,73 +96,79 @@ class Settings(BaseSettings):
     @property
     def ASYNC_DATABASE_URL(self) -> str:
         if not self.DATABASE_URL:
-            # Fallback for local dev if DATABASE_URL is missing
             return "sqlite+aiosqlite:///./missing_db_url.db"
         
-        # 1. Basic Cleaning
         url = self.DATABASE_URL.strip().replace("\r", "").replace("\n", "")
         
-        # 2. Normalize to a parseable format (temporarily use http for urlparse)
-        # We need to handle postgres://, postgresql://, or even postgresql+asyncpg://
-        for prefix in ["postgresql+asyncpg://", "postgresql://", "postgres://"]:
-            if url.startswith(prefix):
-                temp_url = url.replace(prefix, "http://", 1)
-                break
-        else:
-            # If no known prefix, just try to parse what we have or return as is
-            temp_url = url if "://" in url else f"http://{url}"
-
         try:
-            from urllib.parse import urlparse, quote_plus, parse_qs, urlencode
-            p = urlparse(temp_url)
-            
-            # Extract components
-            username = p.username or "postgres"
-            password = p.password or ""
-            hostname = p.hostname
-            port = p.port or 5432
-            path = p.path
-            query_params = parse_qs(p.query)
-            
-            # SUPABASE POOLER (6543) SPECIAL HANDLING
-            is_supabase = "supabase" in (hostname or "") or "pooler" in (hostname or "")
-            
+            # 1. Isolate Protocol
+            protocol = "postgresql+asyncpg"
+            if "://" in url:
+                addr = url.split("://", 1)[1]
+            else:
+                addr = url
+
+            # 2. Isolate Userinfo and Host/Path using rsplit (safest for passwords with '@')
+            if "@" in addr:
+                userinfo, hostpath = addr.rsplit("@", 1)
+                if ":" in userinfo:
+                    username, password = userinfo.split(":", 1)
+                else:
+                    username, password = userinfo, ""
+            else:
+                username, password, hostpath = "postgres", "", addr
+
+            # 3. Isolate Host and Path
+            if "/" in hostpath:
+                host_port, path = hostpath.split("/", 1)
+                path = f"/{path}"
+            else:
+                host_port, path = hostpath, "/postgres"
+
+            # 4. Isolate Host and Port
+            if ":" in host_port:
+                hostname, port = host_port.split(":", 1)
+                port = int(port)
+            else:
+                hostname, port = host_port, 5432
+
+            # 5. Extract Query Params
+            query = ""
+            if "?" in path:
+                path, query = path.split("?", 1)
+
+            # --- SUPABASE POOLER HARDENING ---
+            is_supabase = "supabase" in hostname or "pooler" in hostname
             if is_supabase:
-                # Force Port 6543 for Transaction Mode (Highly recommended for FastAPI)
-                if port == 5432:
-                    port = 6543
-                
-                # Force Username suffix for Pooler (postgres.[ref])
+                if port == 5432: port = 6543 # Force Transaction Mode
                 if port == 6543 and "." not in username:
+                    # Only append project ref if we definitely have it
                     if self.SUPABASE_URL and "supabase.co" in self.SUPABASE_URL:
-                        try:
-                            ref = self.SUPABASE_URL.split("://")[1].split(".")[0]
-                            username = f"postgres.{ref}"
-                        except Exception: pass
+                        ref = self.SUPABASE_URL.split("://")[1].split(".")[0]
+                        username = f"postgres.{ref}"
             
-            # Robust Password Encoding (unquoted by urlparse, must be re-quoted for the final string)
+            # --- SSL NORMALIZATION ---
+            # If the user already provided ssl parameters, keep them. 
+            # Otherwise, add ssl=require for Supabase.
+            if is_supabase and "ssl" not in query.lower():
+                query += "&ssl=require" if query else "ssl=require"
+            
+            # Robust Password Encoding (ONLY encode if it looks like it needs it, 
+            # but usually quote_plus is safe for all strings)
+            from urllib.parse import quote_plus
             encoded_password = quote_plus(password)
             
-            # Asyncpg SSL normalization
-            if "sslmode" in query_params:
-                val = query_params.pop("sslmode")
-                query_params["ssl"] = val
-            
-            if is_supabase and "ssl" not in query_params:
-                query_params["ssl"] = ["require"]
-            
-            # Reconstruct final URL with the required asyncpg driver
-            new_query = urlencode(query_params, doseq=True)
-            final_url = f"postgresql+asyncpg://{username}:{encoded_password}@{hostname}:{port}{path}"
-            if new_query:
-                final_url += f"?{new_query}"
+            # Reconstruct final URL
+            final_url = f"{protocol}://{username}:{encoded_password}@{hostname}:{port}{path}"
+            if query:
+                # Ensure query starts with ? correctly
+                query_str = query if query.startswith("&") else f"?{query}"
+                final_url += query_str.replace("??", "?")
             
             return final_url
-            
+
         except Exception as e:
-            # Fatal fallback if reconstruction fails
-            print(f"CRITICAL: DB URL Reconstruction failed: {e}")
-            # Last ditch attempt: simple string replacement
+            print(f"CRITICAL: Manual DB URL parse failed: {e}")
             return url.replace("postgres://", "postgresql+asyncpg://").replace("postgresql://", "postgresql+asyncpg://")
 
     class Config:

@@ -48,7 +48,7 @@ class EmbeddingService:
             if self.use_gemini:
                 # Gemini embedding model
                 result = genai.embed_content(
-                    model="models/text-embedding-004",
+                    model="models/embedding-001",
                     content=text,
                     task_type="retrieval_query"
                 )
@@ -63,7 +63,7 @@ class EmbeddingService:
                 logger.info("Attempting Emergency Fallback to Gemini...")
                 try:
                     result = genai.embed_content(
-                        model="models/text-embedding-004",
+                        model="models/embedding-001",
                         content=text,
                         task_type="retrieval_query"
                     )
@@ -78,7 +78,7 @@ class EmbeddingService:
                 embeddings = []
                 for text in texts:
                     result = genai.embed_content(
-                        model="models/text-embedding-004",
+                        model="models/embedding-001",
                         content=text,
                         task_type="retrieval_document"
                     )
@@ -97,7 +97,7 @@ class EmbeddingService:
                     embeddings = []
                     for text in texts:
                         result = genai.embed_content(
-                            model="models/text-embedding-004",
+                            model="models/embedding-001",
                             content=text,
                             task_type="retrieval_document"
                         )
